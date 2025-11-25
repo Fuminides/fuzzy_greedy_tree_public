@@ -322,19 +322,6 @@ methods_results = {
 }
 ```
 
-## Citation
-
-If you use this test suite, please cite the FGRT paper:
-
-```bibtex
-@article{fgrt_2026,
-  title={A Fast Interpretable Fuzzy Tree Learner},
-  author={Fumanal-Idocin, Javier and Fernandez-Peralta, Raquel},
-  journal={IEEE World Congress on Computational Intelligence},
-  year={2026}
-}
-```
-
 ## Contact
 
 For questions or issues:
