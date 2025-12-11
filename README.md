@@ -185,30 +185,7 @@ The repository includes a comprehensive experimental suite for:
 - Prediction time analysis
 - Memory consumption profiling
 
-## Results
 
-### Accuracy
-Based on benchmark experiments:
-- FGRT: 79-80% average accuracy across datasets
-- CART: ~81% average accuracy
-- C4.5: ~80% average accuracy
-
-### Model Complexity
-- FGRT: 13-15 rules, 2-3 conditions per rule
-- CART: 30-40 rules
-- C4.5: 130-140 rules
-
-### Training Time
-- FGRT: O(n log n) complexity, similar to CART
-- Substantially faster than evolutionary approaches
-- Partition optimization: 0.1-0.5 seconds per feature (hybrid strategy)
-
-## Documentation
-
-- [QUICKSTART.md](QUICKSTART.md) - Quick start guide
-- [TECHNICAL_REPORT_PARTITION_OPTIMIZATION.md](TECHNICAL_REPORT_PARTITION_OPTIMIZATION.md) - Detailed technical documentation
-- [SEARCH_STRATEGIES.md](SEARCH_STRATEGIES.md) - Strategy comparison and selection guide
-- [PARTITION_OPTIMIZATION_EXPERIMENTS.md](PARTITION_OPTIMIZATION_EXPERIMENTS.md) - Experimental protocol
 
 ## Testing
 
@@ -223,28 +200,11 @@ Generate visualizations:
 python visualize_strategies.py
 ```
 
-## Contributing
-
-Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-Areas for contribution:
-- Additional optimization strategies
-- New partition metrics
-- Parallel optimization implementations
-- Additional benchmark datasets
 
 ## Citation
 
-If you use this code in your research, please cite:
+If you use this code in your research, please cite the arXiv once it is available (soon).
 
-```bibtex
-@article{fumanal2025fgrt,
-  title={Fuzzy Greedy Rule Trees with Optimized Partitions},
-  author={Fumanal-Idocin, Javier and others},
-  journal={},
-  year={2025}
-}
-```
 
 ## License
 
