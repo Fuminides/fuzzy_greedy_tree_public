@@ -1,0 +1,11 @@
+Dataset,Best_Max_Rules,Best_Coverage_Threshold,Best_Min_Improvement,Best_Target_Metric
+appendicitis,5,0.01,0.01,purity
+australian,5,0.01,0.01,purity
+dermatology,15,0.01,0.01,purity
+hepatitis,5,0.01,0.01,purity
+pima,5,0.01,0.01,purity
+spambase,15,0.1,0.01,purity
+wine,5,0.01,0.01,purity
+saheart,5,0.01,0.01,purity
+ring,5,0.01,0.01,purity
+zoo,10,0.01,0.01,purity

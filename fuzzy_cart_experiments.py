@@ -18,7 +18,12 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score
 import time
 from scipy.stats import friedmanchisquare
-from scikit_posthocs import posthoc_nemenyi_friedman
+try:
+    from scikit_posthocs import posthoc_nemenyi_friedman
+    HAS_POSTHOC = True
+except ImportError:
+    HAS_POSTHOC = False
+    print("Warning: scikit-posthocs not available. Post-hoc Nemenyi tests will be skipped.")
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
@@ -179,7 +184,7 @@ class ExperimentRunner:
         self.ablation_results = {}  # Store all configurations tested
         self.best_configs = {}  # Store best config per dataset
         
-    def run_experiment(self, X, y, dataset_name, fuzzy_partitions):
+    def run_experiment(self, X, y, dataset_name, fuzzy_partitions, optimized_partitions=None):
         """
         Run 5-fold cross-validation experiment on a single dataset.
         
@@ -192,7 +197,9 @@ class ExperimentRunner:
         dataset_name : str
             Name of the dataset
         fuzzy_partitions : list
-            Fuzzy partitions for the dataset
+            Fuzzy partitions for the dataset (default)
+        optimized_partitions : list, optional
+            Optimized fuzzy partitions for the dataset
             
         Returns
         -------
@@ -211,6 +218,8 @@ class ExperimentRunner:
         methods_results = {
             'FuzzyCART': {'accuracy': [], 'n_rules': [], 'n_conditions': [], 
                          'n_unique_conditions': [], 'train_time': []},
+            'FuzzyCART_Optimized': {'accuracy': [], 'n_rules': [], 'n_conditions': [], 
+                         'n_unique_conditions': [], 'train_time': []},
             'CART': {'accuracy': [], 'n_rules': [], 'n_conditions': [],
                     'n_unique_conditions': [], 'train_time': []},
             'C4.5': {'accuracy': [], 'n_rules': [], 'n_conditions': [],
@@ -224,9 +233,15 @@ class ExperimentRunner:
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
             
-            # Test FuzzyCART with multiple configurations
+            # Test FuzzyCART with default partitions
             self._test_fuzzycart(X_train, X_test, y_train, y_test,
                                fuzzy_partitions, methods_results['FuzzyCART'])
+            
+            # Test FuzzyCART with optimized partitions if provided
+            if optimized_partitions is not None:
+                self._test_fuzzycart(X_train, X_test, y_train, y_test,
+                                   fuzzy_partitions, methods_results['FuzzyCART_Optimized'],
+                                   optimized_partitions=optimized_partitions)
             
             # Test CART baseline
             self._test_cart(X_train, X_test, y_train, y_test,
@@ -239,6 +254,10 @@ class ExperimentRunner:
         # Compute average results
         dataset_results = {}
         for method_name, results in methods_results.items():
+            # Skip FuzzyCART_Optimized if no results were collected
+            if method_name == 'FuzzyCART_Optimized' and len(results['accuracy']) == 0:
+                continue
+                
             dataset_results[method_name] = {
                 'accuracy_mean': np.mean(results['accuracy']),
                 'accuracy_std': np.std(results['accuracy']),
@@ -274,7 +293,7 @@ class ExperimentRunner:
         return dataset_results
     
     def _test_fuzzycart(self, X_train, X_test, y_train, y_test, 
-                        fuzzy_partitions, results_dict):
+                        fuzzy_partitions, results_dict, optimized_partitions=None):
         """
         Test FuzzyCART with different configurations.
         
@@ -285,9 +304,11 @@ class ExperimentRunner:
         y_train, y_test : np.ndarray
             Training and test labels
         fuzzy_partitions : list
-            Fuzzy partitions for features
+            Fuzzy partitions for features (default partitions)
         results_dict : dict
             Dictionary to store results
+        optimized_partitions : list, optional
+            Optimized fuzzy partitions for features
         """
         # Ablation study: test multiple configurations
         configs = [
@@ -320,12 +341,15 @@ class ExperimentRunner:
         best_config = None
         all_configs_results = []  # Store all results for this fold
         
+        # Use optimized partitions if provided, otherwise use default
+        partitions_to_use = optimized_partitions if optimized_partitions is not None else fuzzy_partitions
+        
         for config in configs:
             try:
                 start_time = time.time()
                 
                 fuzzy_cart = FuzzyCART(
-                    fuzzy_partitions=fuzzy_partitions,
+                    fuzzy_partitions=partitions_to_use,
                     max_rules=config['max_rules'],
                     coverage_threshold=config['coverage_threshold'],
                     min_improvement=config['min_improvement'],
@@ -476,7 +500,7 @@ class ExperimentRunner:
             results_dict['n_conditions'].append(0)
             results_dict['n_unique_conditions'].append(0)
     
-    def run_all_experiments(self, datasets_dict):
+    def run_all_experiments(self, datasets_dict, optimize_partitions=False):
         """
         Run experiments on all datasets.
         
@@ -484,6 +508,8 @@ class ExperimentRunner:
         ----------
         datasets_dict : dict
             Dictionary mapping dataset names to (X, y, categorical_mask) tuples
+        optimize_partitions : bool, default=False
+            Whether to optimize fuzzy partitions before experiments
             
         Returns
         -------
@@ -495,7 +521,7 @@ class ExperimentRunner:
         for dataset_name, (X, y, categorical_mask) in datasets_dict.items():
             print(f"\n\nProcessing dataset: {dataset_name}")
             
-            # Generate fuzzy partitions using ex_fuzzy utils
+            # Generate default fuzzy partitions using ex_fuzzy utils
             fuzzy_partitions = utils.construct_partitions(
                 X, 
                 fz_type_studied=fs.FUZZY_SETS.t1,
@@ -504,8 +530,27 @@ class ExperimentRunner:
                 shape='trapezoid'
             )
             
+            # Optimize partitions if requested
+            optimized_partitions = None
+            if optimize_partitions:
+                print(f"  Optimizing fuzzy partitions...")
+                from partition_optimization import optimize_partitions_for_gfrt
+                try:
+                    optimized_partitions = optimize_partitions_for_gfrt(
+                        X, y,
+                        initial_partitions=fuzzy_partitions,
+                        method='separability',
+                        strategy='grid',
+                        verbose=False,
+                        categorical_mask=categorical_mask
+                    )
+                    print(f"  ✓ Partition optimization complete!")
+                except Exception as e:
+                    print(f"  ✗ Partition optimization failed: {e}")
+                    print(f"    Proceeding with default partitions only")
+            
             # Run experiments
-            dataset_results = self.run_experiment(X, y, dataset_name, fuzzy_partitions)
+            dataset_results = self.run_experiment(X, y, dataset_name, fuzzy_partitions, optimized_partitions)
             all_results[dataset_name] = dataset_results
             
             # Store best config for this dataset
@@ -902,6 +947,11 @@ class StatisticalAnalyzer:
         pd.DataFrame
             Matrix of p-values for pairwise comparisons
         """
+        if not HAS_POSTHOC:
+            print("\nPost-hoc Nemenyi Test skipped (scikit-posthocs not installed)")
+            print("Install with: pip install scikit-posthocs")
+            return None
+            
         # Pivot to get methods as columns and datasets as rows
         pivot = results_df.pivot(index='Dataset', columns='Method', values='Accuracy')
         
@@ -914,9 +964,15 @@ class StatisticalAnalyzer:
         return nemenyi_results
 
 
-def main():
+def main(optimize_partitions=False):
     """
     Main function to run complete experimental suite.
+    
+    Parameters
+    ----------
+    optimize_partitions : bool, default=False
+        Whether to optimize fuzzy partitions before running experiments.
+        If True, compares default partitions vs optimized partitions.
     """
     import os
     
@@ -926,6 +982,8 @@ def main():
     
     print("="*80)
     print("FuzzyCART Comprehensive Experimental Suite")
+    if optimize_partitions:
+        print("WITH PARTITION OPTIMIZATION")
     print("="*80)
     print(f"\nResults will be saved to: {results_dir}/")
     
@@ -949,9 +1007,11 @@ def main():
     # Run experiments
     print("\n" + "="*80)
     print("Running Experiments")
+    if optimize_partitions:
+        print("(Comparing Default vs Optimized Partitions)")
     print("="*80)
     
-    results_df, all_results = runner.run_all_experiments(datasets)
+    results_df, all_results = runner.run_all_experiments(datasets, optimize_partitions=optimize_partitions)
     
     # Display summary results
     print("\n" + "="*80)
@@ -1028,6 +1088,69 @@ def main():
         visualizer = AblationVisualizer()
         visualizer.plot_parameter_impact(ablation_df, output_prefix=os.path.join(results_dir, 'ablation_study'))
     
+    # If partition optimization was used, create comparison plots
+    if optimize_partitions and 'FuzzyCART_Optimized' in results_df['Method'].values:
+        print("\n" + "="*80)
+        print("Partition Optimization Impact Analysis")
+        print("="*80)
+        
+        # Compare default vs optimized partitions
+        default_results = results_df[results_df['Method'] == 'FuzzyCART']
+        optimized_results = results_df[results_df['Method'] == 'FuzzyCART_Optimized']
+        
+        if not default_results.empty and not optimized_results.empty:
+            comparison_df = pd.DataFrame({
+                'Dataset': default_results['Dataset'].values,
+                'Default_Accuracy': default_results['Accuracy'].values,
+                'Optimized_Accuracy': optimized_results['Accuracy'].values,
+                'Improvement': optimized_results['Accuracy'].values - default_results['Accuracy'].values,
+                'Relative_Improvement_%': 100 * (optimized_results['Accuracy'].values - default_results['Accuracy'].values) / default_results['Accuracy'].values
+            })
+            
+            print("\nPartition Optimization Impact:")
+            print(comparison_df)
+            comparison_df.to_csv(os.path.join(results_dir, 'partition_optimization_comparison.csv'), index=False)
+            print(f"\nComparison saved to: {results_dir}/partition_optimization_comparison.csv")
+            
+            # Summary statistics
+            print(f"\nAverage accuracy improvement: {comparison_df['Improvement'].mean():.4f}")
+            print(f"Median accuracy improvement: {comparison_df['Improvement'].median():.4f}")
+            print(f"Datasets improved: {(comparison_df['Improvement'] > 0).sum()}/{len(comparison_df)}")
+            print(f"Max improvement: {comparison_df['Improvement'].max():.4f} ({comparison_df.loc[comparison_df['Improvement'].idxmax(), 'Dataset']})")
+            
+            # Create visualization
+            fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+            
+            # Bar plot comparison
+            x = np.arange(len(comparison_df))
+            width = 0.35
+            axes[0].bar(x - width/2, comparison_df['Default_Accuracy'], width, label='Default Partitions', alpha=0.8, color='skyblue')
+            axes[0].bar(x + width/2, comparison_df['Optimized_Accuracy'], width, label='Optimized Partitions', alpha=0.8, color='orange')
+            axes[0].set_xlabel('Dataset', fontweight='bold')
+            axes[0].set_ylabel('Accuracy', fontweight='bold')
+            axes[0].set_title('Default vs Optimized Partitions', fontweight='bold')
+            axes[0].set_xticks(x)
+            axes[0].set_xticklabels(comparison_df['Dataset'], rotation=45, ha='right')
+            axes[0].legend()
+            axes[0].grid(True, alpha=0.3, axis='y')
+            
+            # Improvement plot
+            colors = ['green' if x > 0 else 'red' for x in comparison_df['Improvement']]
+            axes[1].bar(x, comparison_df['Improvement'], color=colors, alpha=0.7)
+            axes[1].axhline(y=0, color='black', linestyle='-', linewidth=0.8)
+            axes[1].set_xlabel('Dataset', fontweight='bold')
+            axes[1].set_ylabel('Accuracy Improvement', fontweight='bold')
+            axes[1].set_title('Impact of Partition Optimization', fontweight='bold')
+            axes[1].set_xticks(x)
+            axes[1].set_xticklabels(comparison_df['Dataset'], rotation=45, ha='right')
+            axes[1].grid(True, alpha=0.3, axis='y')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(results_dir, 'partition_optimization_impact.pdf'), bbox_inches='tight')
+            plt.savefig(os.path.join(results_dir, 'partition_optimization_impact.png'), bbox_inches='tight')
+            print(f"Impact visualization saved to: {results_dir}/partition_optimization_impact.pdf/png")
+            plt.close()
+    
     print("\n" + "="*80)
     print("Experiments Complete!")
     print("="*80)
@@ -1038,7 +1161,17 @@ def main():
     print("  - fuzzy_cart_best_configs.csv (best hyperparameters per dataset)")
     print("  - fuzzy_cart_ablation_all_configs.csv (all configurations tested)")
     print("  - ablation_study_*.pdf/png (publication figures)")
+    if optimize_partitions:
+        print("  - partition_optimization_comparison.csv (default vs optimized comparison)")
+        print("  - partition_optimization_impact.pdf/png (impact visualization)")
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Run FuzzyCART experiments')
+    parser.add_argument('--optimize-partitions', action='store_true',
+                       help='Optimize fuzzy partitions before experiments (compares default vs optimized)')
+    args = parser.parse_args()
+    
+    main(optimize_partitions=args.optimize_partitions)
