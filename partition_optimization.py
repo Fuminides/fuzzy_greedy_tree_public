@@ -126,31 +126,54 @@ class FuzzyPartitionOptimizer:
         n_features = X.shape[1]
         optimized_partitions = {}
         
+        # Convert categorical_mask to boolean array if provided
+        if categorical_mask is not None:
+            categorical_mask = np.asarray(categorical_mask, dtype=bool)
+        else:
+            categorical_mask = np.zeros(n_features, dtype=bool)
+        
         if self.verbose:
             print(f"\nOptimizing fuzzy partitions using {self.optimization_method} "
                   f"metric with {self.search_strategy} search...")
             if initial_partitions is not None:
                 print(f"Using provided initial partitions")
-                partition_parameters = []
-                for feature_idx in range(n_features):
-                    params_feature = np.zeros((4 * len(initial_partitions[feature_idx]),))
-                    for ix, logic_set in enumerate(initial_partitions[feature_idx]):
-                        params_feature[ix*4:(ix+1)*4] = logic_set.membership_parameters
-
-                    partition_parameters.append(params_feature)
+                n_categorical = np.sum(categorical_mask)
+                n_fuzzy = n_features - n_categorical
+                print(f"Features: {n_features} total ({n_fuzzy} fuzzy, {n_categorical} categorical)")
+                print(f"Note: Only fuzzy features will be optimized")
             else:
                 raise RuntimeError("Initial partitions must be provided for optimization.")
             
 
         
-        # Optimize each feature independently
+        # Optimize each feature independently (skip categorical features)
         for feature_idx in range(n_features):
+            initial_partition = initial_partitions[feature_idx]
+            
+            # Check if this is a categorical feature by checking the first fuzzy set type
+            is_categorical = categorical_mask[feature_idx] if categorical_mask is not None else False
+            if not is_categorical and len(initial_partition) > 0:
+                # Check if it's a categoricalFS by trying to access membership_parameters
+                try:
+                    _ = initial_partition[0].membership_parameters
+                except AttributeError:
+                    # This is a categorical feature, skip it
+                    is_categorical = True
+            
+            if is_categorical:
+                if self.verbose:
+                    print(f"\nFeature {feature_idx + 1}/{n_features}: Categorical (skipping optimization)")
+                # Keep original categorical partition
+                optimized_partitions[feature_idx] = np.array([fs_obj.membership_parameters 
+                                                               if hasattr(fs_obj, 'membership_parameters') 
+                                                               else [0, 0, 0, 0] 
+                                                               for fs_obj in initial_partition])
+                continue
+            
             if self.verbose:
                 print(f"\nOptimizing feature {feature_idx + 1}/{n_features}...")
             
             X_feature = X[:, feature_idx].reshape(-1, 1)
-            
-            initial_partition = initial_partitions[feature_idx]
             
             # Run optimization for this feature
             best_partition, best_score = self._optimize_single_feature_from_partition(
@@ -164,28 +187,36 @@ class FuzzyPartitionOptimizer:
             print(f"\n✓ Partition optimization complete!")
             print(f"Converting to ex_fuzzy format...")
         
-        # Convert optimized dict to ex_fuzzy format using utils.construct_partitions
-        # We'll use the optimized partition parameters to create custom fuzzy variables
+        # Convert optimized dict to ex_fuzzy format
+        # For categorical features, keep the original partitions
         fuzzy_vars = []
         
         for feature_idx in range(n_features):
-            partition_params = optimized_partitions[feature_idx]
-            linguistic_terms = ['Low', 'Medium', 'High']
+            # Check if this was a categorical feature (kept original)
+            is_categorical = categorical_mask[feature_idx]
             
-            # Create fuzzy sets for this feature using ex_fuzzy API
-            # fs.FS(name, membership_parameters, linguistic_variable_domain)
-            fuzzy_sets_list = []
-            for term_idx, (term_name, params) in enumerate(zip(linguistic_terms, partition_params)):
-                # params = [a, b, c, d] for trapezoid
-                fuzzy_set = fs.FS(term_name, params, None)
-                fuzzy_sets_list.append(fuzzy_set)
-            
-            # Create fuzzy variable with optimized sets
-            fuzzy_var = fs.fuzzyVariable(
-                f"Feature_{feature_idx}",
-                fuzzy_sets_list
-            )
-            fuzzy_vars.append(fuzzy_var)
+            if is_categorical:
+                # Return original categorical partition unchanged
+                fuzzy_vars.append(initial_partitions[feature_idx])
+            else:
+                # Create optimized fuzzy variable
+                partition_params = optimized_partitions[feature_idx]
+                linguistic_terms = ['Low', 'Medium', 'High']
+                
+                # Create fuzzy sets for this feature using ex_fuzzy API
+                # fs.FS(name, membership_parameters, linguistic_variable_domain)
+                fuzzy_sets_list = []
+                for term_idx, (term_name, params) in enumerate(zip(linguistic_terms, partition_params)):
+                    # params = [a, b, c, d] for trapezoid
+                    fuzzy_set = fs.FS(term_name, params, None)
+                    fuzzy_sets_list.append(fuzzy_set)
+                
+                # Create fuzzy variable with optimized sets
+                fuzzy_var = fs.fuzzyVariable(
+                    f"Feature_{feature_idx}",
+                    fuzzy_sets_list
+                )
+                fuzzy_vars.append(fuzzy_var)
         
         if self.verbose:
             print(f"✓ Conversion complete! Returning {len(fuzzy_vars)} fuzzy variables")
@@ -249,17 +280,31 @@ class FuzzyPartitionOptimizer:
             best_encoded, best_score = self._grid_search_encoded(
                 X_feature, y, best_encoded, best_score, max_iterations
             )
-        else:
-            # For other strategies, we could implement encoded versions
-            # For now, just use the initial encoding (coordinate descent, gradient, hybrid not yet adapted to encoded space)
+        elif self.search_strategy == 'coordinate':
+            best_encoded, best_score = self._coordinate_descent_encoded(
+                X_feature, y, best_encoded, best_score, max_iterations
+            )
+        elif self.search_strategy == 'hybrid':
+            best_encoded, best_score = self._hybrid_search_encoded(
+                X_feature, y, best_encoded, best_score, max_iterations
+            )
+        elif self.search_strategy == 'gradient':
             if self.verbose:
-                print(f"    Warning: {self.search_strategy} strategy not yet adapted to direct encoding. Using initial partition.")
+                print(f"    Warning: gradient strategy not yet adapted to direct encoding. Using coordinate descent instead.")
+            best_encoded, best_score = self._coordinate_descent_encoded(
+                X_feature, y, best_encoded, best_score, max_iterations
+            )
+        else:
+            if self.verbose:
+                print(f"    Warning: Unknown strategy '{self.search_strategy}'. Using initial partition.")
         
         # Decode to get final partition
         best_partition = self._decode_partitions(best_encoded, X_feature)
         
         if self.verbose:
-            initial_score = self._evaluate_partition_direct(X_feature, y, initial_partition)
+            # Convert initial_partition (list of FS) to ndarray for evaluation
+            initial_partition_array = np.array([fs_obj.membership_parameters for fs_obj in initial_partition])
+            initial_score = self._evaluate_partition_direct(X_feature, y, initial_partition_array)
             print(f"  Initial score: {initial_score:.4f}")
             print(f"  Optimized score: {best_score:.4f}")
         
@@ -342,6 +387,108 @@ class FuzzyPartitionOptimizer:
         
         if self.verbose:
             print(f"    Grid search: evaluated {evaluated} configurations")
+        
+        return best_encoded, best_score
+    
+    def _coordinate_descent_encoded(
+        self,
+        X_feature: np.ndarray,
+        y: np.ndarray,
+        initial_encoded: np.ndarray,
+        initial_score: float,
+        max_iterations: int
+    ) -> Tuple[np.ndarray, float]:
+        """
+        Coordinate descent on encoded parameters.
+        Optimizes one parameter at a time in a cyclic manner.
+        """
+        best_encoded = initial_encoded.copy()
+        best_score = initial_score
+        
+        feature_range = np.max(X_feature) - np.min(X_feature)
+        
+        # Focus on key parameters (same as grid search)
+        key_indices = [2, 4, 6]  # Low[c], Low[d], Medium[g]
+        
+        # Step sizes as fractions of feature range
+        step_sizes = [0.10, 0.05, 0.02]  # Progressively smaller steps
+        
+        evaluated = 0
+        
+        for iteration in range(max_iterations):
+            improved = False
+            
+            for step_size in step_sizes:
+                for param_idx in key_indices:
+                    # Try both directions
+                    for direction in [-1, 1]:
+                        test_encoded = best_encoded.copy()
+                        test_encoded[param_idx] += direction * step_size * feature_range
+                        
+                        # Ensure non-negative
+                        test_encoded[1:] = np.maximum(test_encoded[1:], 0.0)
+                        
+                        score = self._evaluate_partition_encoded(X_feature, y, test_encoded)
+                        evaluated += 1
+                        
+                        if score > best_score:
+                            best_encoded = test_encoded
+                            best_score = score
+                            improved = True
+                
+                if improved:
+                    break  # Found improvement with this step size
+            
+            if not improved:
+                break  # Converged
+        
+        if self.verbose:
+            print(f"    Coordinate descent: evaluated {evaluated} configurations, converged after {iteration + 1} iterations")
+        
+        return best_encoded, best_score
+    
+    def _hybrid_search_encoded(
+        self,
+        X_feature: np.ndarray,
+        y: np.ndarray,
+        initial_encoded: np.ndarray,
+        initial_score: float,
+        max_iterations: int
+    ) -> Tuple[np.ndarray, float]:
+        """
+        Hybrid search: coarse grid search followed by coordinate descent refinement.
+        """
+        # Phase 1: Coarse grid search (fewer candidates than full grid)
+        feature_range = np.max(X_feature) - np.min(X_feature)
+        coarse_candidates = [0.10, 0.20, 0.30]  # 3 values instead of 6
+        
+        best_encoded = initial_encoded.copy()
+        best_score = initial_score
+        evaluated = 0
+        
+        for inc_low_c in coarse_candidates:
+            for inc_low_d in coarse_candidates:
+                for inc_med_g in coarse_candidates:
+                    test_encoded = initial_encoded.copy()
+                    test_encoded[2] = inc_low_c * feature_range
+                    test_encoded[4] = inc_low_d * feature_range
+                    test_encoded[6] = inc_med_g * feature_range
+                    test_encoded[1:] = np.maximum(test_encoded[1:], 0.0)
+                    
+                    score = self._evaluate_partition_encoded(X_feature, y, test_encoded)
+                    evaluated += 1
+                    
+                    if score > best_score:
+                        best_encoded = test_encoded
+                        best_score = score
+        
+        if self.verbose:
+            print(f"    Hybrid search: Phase 1 (coarse grid) - evaluated {evaluated} configurations")
+        
+        # Phase 2: Local coordinate descent refinement
+        best_encoded, best_score = self._coordinate_descent_encoded(
+            X_feature, y, best_encoded, best_score, max_iterations // 2
+        )
         
         return best_encoded, best_score
     
