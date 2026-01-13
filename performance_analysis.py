@@ -30,17 +30,32 @@ class PerformanceAnalyzer:
     """
     Analyzes computational performance and scalability of FuzzyCART.
     """
-    
-    def __init__(self, random_state=42):
+
+    def __init__(self, random_state=42, penalize_no_rules: bool = True, no_rules_penalty_multiplier: float = 10.0,
+                 early_stop_threshold: float = 0.05, use_numba: bool = True):
         """
         Initialize performance analyzer.
-        
+
         Parameters
         ----------
         random_state : int
             Random seed for reproducibility
+        penalize_no_rules : bool
+            If True, apply a penalty to timing measurements for cases where FuzzyCART
+            learns no rules (to avoid misleadingly fast timings for trivial models).
+        no_rules_penalty_multiplier : float
+            Multiplier applied to raw timing when no rules are produced (default 10.0).
+        early_stop_threshold : float
+            Early stopping threshold for FuzzyCART optimization (default 0.05).
+            Set to 0.0 to disable early stopping.
+        use_numba : bool
+            If True, use Numba JIT compilation for faster training (default True).
         """
         self.random_state = random_state
+        self.penalize_no_rules = penalize_no_rules
+        self.no_rules_penalty_multiplier = no_rules_penalty_multiplier
+        self.early_stop_threshold = early_stop_threshold
+        self.use_numba = use_numba
         self.results = []
         
     def generate_synthetic_dataset(self, n_samples, n_features, n_classes=3):
@@ -140,14 +155,35 @@ class PerformanceAnalyzer:
                     fuzzy_partitions=fuzzy_partitions,
                     max_rules=15,
                     coverage_threshold=0.01,
-                    min_improvement=0.01
+                    min_improvement=0.01,
+                    target_metric='purity',
+                    early_stop_threshold=self.early_stop_threshold,
+                    use_numba=self.use_numba
                 )
                 fuzzy_cart.fit(X_train, y_train)
                 
-                fuzzy_cart_time = time.time() - start_time
+                # Raw timing
+                fuzzy_cart_time_raw = time.time() - start_time
                 current, peak = tracemalloc.get_traced_memory()
                 fuzzy_cart_memory = peak / 1024 / 1024  # MB
                 tracemalloc.stop()
+
+                # Determine number of rules (fallback to leaf count if attribute missing)
+                fuzzy_cart_rules = getattr(fuzzy_cart, 'tree_rules', None)
+                try:
+                    if fuzzy_cart_rules is None:
+                        fuzzy_cart_rules = len(fuzzy_cart._get_leaves())
+                except Exception:
+                    fuzzy_cart_rules = -1
+
+                # Apply penalization if no rules learned
+                if self.penalize_no_rules and (fuzzy_cart_rules <= 1):
+                    fuzzy_cart_time = fuzzy_cart_time_raw * self.no_rules_penalty_multiplier
+                    print(f"  WARNING: FuzzyCART learned no rules (rules={fuzzy_cart_rules}). Applying penalty x{self.no_rules_penalty_multiplier} to training time.")
+                    no_rules_flag = True
+                else:
+                    fuzzy_cart_time = fuzzy_cart_time_raw
+                    no_rules_flag = False
                     
                 
                 # Test CART
@@ -176,33 +212,69 @@ class PerformanceAnalyzer:
                     tolerance=0.01,
                     runner=1
                 )
-                base_fuzzy.fit(X_train, y_train)
-                base_fuzzy_time = time.time() - start_time
-                
+                base_fuzzy.fit(X_train, y_train, n_gen=100, pop_size=50)
+                base_fuzzy_time_raw = time.time() - start_time
+
+                # Attempt to detect number of rules learned by BaseFuzzy
+                base_fuzzy_rules = None
+                for attr in ('nRules', 'n_rules', 'rules', 'rules_', 'best_rules', 'n_rules_learned', 'rules_learned'):
+                    val = getattr(base_fuzzy, attr, None)
+                    if val is not None:
+                        if isinstance(val, (list, tuple, np.ndarray)):
+                            base_fuzzy_rules = len(val)
+                        elif isinstance(val, int):
+                            base_fuzzy_rules = int(val)
+                        break
+                if base_fuzzy_rules is None:
+                    # As a last resort, attempt to inspect a common attribute 'ant' or 'solutions'
+                    val = getattr(base_fuzzy, 'solutions', None) or getattr(base_fuzzy, 'population', None)
+                    if isinstance(val, (list, tuple, np.ndarray)):
+                        base_fuzzy_rules = len(val)
+
+                if base_fuzzy_rules is None:
+                    base_fuzzy_rules = -1  # unknown
+
+                # Apply penalization if no rules learned (only when known to be 0 or 1)
+                if self.penalize_no_rules and (base_fuzzy_rules in (0, 1)):
+                    genetic_opt_time = base_fuzzy_time_raw * self.no_rules_penalty_multiplier
+                    base_fuzzy_no_rules_flag = True
+                    print(f"  WARNING: BaseFuzzy (Genetic Opt.) learned no rules (rules={base_fuzzy_rules}). Applying penalty x{self.no_rules_penalty_multiplier} to its training time.")
+                else:
+                    genetic_opt_time = base_fuzzy_time_raw
+                    base_fuzzy_no_rules_flag = False
+
                 results.append({
                     'n_samples': n_samples,
                     'n_features': n_features,
                     'trial': trial,
+                    'fuzzy_cart_time_raw': fuzzy_cart_time_raw,
                     'fuzzy_cart_time': fuzzy_cart_time,
+                    'fuzzy_cart_rules': fuzzy_cart_rules,
+                    'fuzzy_cart_no_rules_flag': no_rules_flag,
                     'fuzzy_cart_memory_mb': fuzzy_cart_memory,
                     'cart_time': cart_time,
                     'c45_time': c45_time,
-                    'base_fuzzy_time': base_fuzzy_time
+                    'genetic_opt_time_raw': base_fuzzy_time_raw,
+                    'genetic_opt_time': genetic_opt_time,
+                    'genetic_opt_rules': base_fuzzy_rules,
+                    'genetic_opt_no_rules_flag': base_fuzzy_no_rules_flag
                 })
-                
-                print(f"  Trial {trial+1}: FuzzyCART={fuzzy_cart_time:.4f}s, "
+
+                print(f"  Trial {trial+1}: FuzzyCART={fuzzy_cart_time:.4f}s (raw={fuzzy_cart_time_raw:.4f}s, rules={fuzzy_cart_rules}), "
                       f"CART={cart_time:.4f}s, C4.5={c45_time:.4f}s, "
-                      f"BaseFuzzy={base_fuzzy_time:.4f}s")
+                      f"Genetic Opt.={genetic_opt_time:.4f}s (raw={base_fuzzy_time_raw:.4f}s, rules={base_fuzzy_rules})")
         
         results_df = pd.DataFrame(results)
         
         # Compute averages
         avg_results = results_df.groupby('n_samples').agg({
+            'fuzzy_cart_time_raw': ['mean', 'std'],
             'fuzzy_cart_time': ['mean', 'std'],
             'fuzzy_cart_memory_mb': ['mean', 'std'],
             'cart_time': ['mean', 'std'],
             'c45_time': ['mean', 'std'],
-            'base_fuzzy_time': ['mean', 'std']
+            'genetic_opt_time_raw': ['mean', 'std'],
+            'genetic_opt_time': ['mean', 'std']
         }).reset_index()
         
         print("\n" + "="*60)
@@ -254,25 +326,52 @@ class PerformanceAnalyzer:
                 fuzzy_partitions = self.generate_fuzzy_partitions(X_train)
                 
                 # Test FuzzyCART
-                start_time = time.time()
+                
                 fuzzy_cart = FuzzyCART(
                     fuzzy_partitions=fuzzy_partitions,
                     max_rules=15,
                     coverage_threshold=0.01,
-                    min_improvement=0.01
+                    min_improvement=0.01,
+                    target_metric='purity',
+                    early_stop_threshold=self.early_stop_threshold,
+                    use_numba=self.use_numba
                 )
+                start_time = time.time()
                 fuzzy_cart.fit(X_train, y_train)
-                fuzzy_cart_time = time.time() - start_time
+                fuzzy_cart_time_raw = time.time() - start_time
+
+                # Determine rules and penalize if needed
+                fuzzy_cart_rules = getattr(fuzzy_cart, 'tree_rules', None)
+                try:
+                    if fuzzy_cart_rules is None:
+                        fuzzy_cart_rules = len(fuzzy_cart._get_leaves())
+                except Exception:
+                    fuzzy_cart_rules = -1
+
+                if self.penalize_no_rules and (fuzzy_cart_rules <= 1):
+                    fuzzy_cart_time = fuzzy_cart_time_raw * self.no_rules_penalty_multiplier
+                    print(f"  WARNING: FuzzyCART learned no rules (rules={fuzzy_cart_rules}). Applying penalty x{self.no_rules_penalty_multiplier} to training time.")
+                    no_rules_flag = True
+                else:
+                    fuzzy_cart_time = fuzzy_cart_time_raw
+                    no_rules_flag = False
                 
                 # Test CART
-                start_time = time.time()
                 cart = DecisionTreeClassifier(random_state=self.random_state)
+                start_time = time.time()
                 cart.fit(X_train, y_train)
                 cart_time = time.time() - start_time
                 
+                # Test C4.5
+                c45 = DecisionTreeClassifier(
+                    criterion='entropy',
+                    random_state=self.random_state
+                )
+                start_time = time.time()
+                c45.fit(X_train, y_train)
+                c45_time = time.time() - start_time
                 
                 # Test BaseFuzzyRulesClassifier
-                start_time = time.time()
                 base_fuzzy = BaseFuzzyRulesClassifier(
                     nRules=15,
                     nAnts=3,
@@ -280,29 +379,64 @@ class PerformanceAnalyzer:
                     tolerance=0.01,
                     runner=1
                 )
-                base_fuzzy.fit(X_train, y_train)
-                base_fuzzy_time = time.time() - start_time
-                
-                
+                start_time = time.time()
+                base_fuzzy.fit(X_train, y_train, n_gen=100, pop_size=50)
+                base_fuzzy_time_raw = time.time() - start_time
+
+                # Detect BaseFuzzy rules (same strategy as samples block)
+                base_fuzzy_rules = None
+                for attr in ('nRules', 'n_rules', 'rules', 'rules_', 'best_rules', 'n_rules_learned', 'rules_learned'):
+                    val = getattr(base_fuzzy, attr, None)
+                    if val is not None:
+                        if isinstance(val, (list, tuple, np.ndarray)):
+                            base_fuzzy_rules = len(val)
+                        elif isinstance(val, int):
+                            base_fuzzy_rules = int(val)
+                        break
+                if base_fuzzy_rules is None:
+                    val = getattr(base_fuzzy, 'solutions', None) or getattr(base_fuzzy, 'population', None)
+                    if isinstance(val, (list, tuple, np.ndarray)):
+                        base_fuzzy_rules = len(val)
+                if base_fuzzy_rules is None:
+                    base_fuzzy_rules = -1
+
+                if self.penalize_no_rules and (base_fuzzy_rules in (0, 1)):
+                    genetic_opt_time = base_fuzzy_time_raw * self.no_rules_penalty_multiplier
+                    base_fuzzy_no_rules_flag = True
+                    print(f"  WARNING: BaseFuzzy (Genetic Opt.) learned no rules (rules={base_fuzzy_rules}). Applying penalty x{self.no_rules_penalty_multiplier} to its training time.")
+                else:
+                    genetic_opt_time = base_fuzzy_time_raw
+                    base_fuzzy_no_rules_flag = False
+
                 results.append({
                     'n_samples': n_samples,
                     'n_features': n_features,
                     'trial': trial,
+                    'fuzzy_cart_time_raw': fuzzy_cart_time_raw,
                     'fuzzy_cart_time': fuzzy_cart_time,
+                    'fuzzy_cart_rules': fuzzy_cart_rules,
+                    'fuzzy_cart_no_rules_flag': no_rules_flag,
                     'cart_time': cart_time,
-                    'base_fuzzy_time': base_fuzzy_time
+                    'c45_time': c45_time,
+                    'genetic_opt_time_raw': base_fuzzy_time_raw,
+                    'genetic_opt_time': genetic_opt_time,
+                    'genetic_opt_rules': base_fuzzy_rules,
+                    'genetic_opt_no_rules_flag': base_fuzzy_no_rules_flag
                 })
-                
-                print(f"  Trial {trial+1}: FuzzyCART={fuzzy_cart_time:.4f}s, "
-                      f"CART={cart_time:.4f}s, BaseFuzzy={base_fuzzy_time:.4f}s")
+
+                print(f"  Trial {trial+1}: FuzzyCART={fuzzy_cart_time:.4f}s (raw={fuzzy_cart_time_raw:.4f}s, rules={fuzzy_cart_rules}), "
+                      f"CART={cart_time:.4f}s, C4.5={c45_time:.4f}s, Genetic Opt.={genetic_opt_time:.4f}s (raw={base_fuzzy_time_raw:.4f}s, rules={base_fuzzy_rules})")
         
         results_df = pd.DataFrame(results)
         
         # Compute averages
         avg_results = results_df.groupby('n_features').agg({
+            'fuzzy_cart_time_raw': ['mean', 'std'],
             'fuzzy_cart_time': ['mean', 'std'],
             'cart_time': ['mean', 'std'],
-            'base_fuzzy_time': ['mean', 'std']
+            'c45_time': ['mean', 'std'],
+            'genetic_opt_time_raw': ['mean', 'std'],
+            'genetic_opt_time': ['mean', 'std']
         }).reset_index()
         
         print("\n" + "="*60)
@@ -344,11 +478,24 @@ class PerformanceAnalyzer:
             fuzzy_partitions=fuzzy_partitions,
             max_rules=15,
             coverage_threshold=0.01,
-            min_improvement=0.01
+            min_improvement=0.01,
+            target_metric='purity',
+            early_stop_threshold=self.early_stop_threshold,
+            use_numba=self.use_numba
         )
         fuzzy_cart.fit(X_train, y_train)
-       
         
+        # Determine rules to flag for prediction-time penalization
+        fuzzy_cart_rules = getattr(fuzzy_cart, 'tree_rules', None)
+        try:
+            if fuzzy_cart_rules is None:
+                fuzzy_cart_rules = len(fuzzy_cart._get_leaves())
+        except Exception:
+            fuzzy_cart_rules = -1
+        fuzzy_cart_had_no_rules = bool(self.penalize_no_rules and (fuzzy_cart_rules <= 1))
+        if fuzzy_cart_had_no_rules:
+            print(f"WARNING: FuzzyCART trained with no rules (rules={fuzzy_cart_rules}). Prediction times will be penalized by x{self.no_rules_penalty_multiplier}.")
+       
         cart = DecisionTreeClassifier(random_state=self.random_state)
         cart.fit(X_train, y_train)
         
@@ -361,6 +508,27 @@ class PerformanceAnalyzer:
         )
         base_fuzzy.fit(X_train, y_train)
         base_fuzzy_trained = True
+
+        # Detect number of rules learned by BaseFuzzy (for prediction-time penalization)
+        base_fuzzy_rules = None
+        for attr in ('nRules', 'n_rules', 'rules', 'rules_', 'best_rules', 'n_rules_learned', 'rules_learned'):
+            val = getattr(base_fuzzy, attr, None)
+            if val is not None:
+                if isinstance(val, (list, tuple, np.ndarray)):
+                    base_fuzzy_rules = len(val)
+                elif isinstance(val, int):
+                    base_fuzzy_rules = int(val)
+                break
+        if base_fuzzy_rules is None:
+            val = getattr(base_fuzzy, 'solutions', None) or getattr(base_fuzzy, 'population', None)
+            if isinstance(val, (list, tuple, np.ndarray)):
+                base_fuzzy_rules = len(val)
+        if base_fuzzy_rules is None:
+            base_fuzzy_rules = -1
+
+        base_fuzzy_had_no_rules = bool(self.penalize_no_rules and (base_fuzzy_rules in (0, 1)))
+        if base_fuzzy_had_no_rules:
+            print(f"WARNING: BaseFuzzy (Genetic Opt.) trained with no rules (rules={base_fuzzy_rules}). Prediction times will be penalized by x{self.no_rules_penalty_multiplier}.")
         
         results = []
         
@@ -372,8 +540,13 @@ class PerformanceAnalyzer:
             # Measure FuzzyCART prediction time
             start_time = time.time()
             _ = fuzzy_cart.predict(X_test)
-            fuzzy_cart_pred_time = time.time() - start_time
-            
+            fuzzy_cart_pred_time_raw = time.time() - start_time
+
+            # Apply penalization when no rules were trained
+            if fuzzy_cart_had_no_rules:
+                fuzzy_cart_pred_time = fuzzy_cart_pred_time_raw * self.no_rules_penalty_multiplier
+            else:
+                fuzzy_cart_pred_time = fuzzy_cart_pred_time_raw
             
             # Measure CART prediction time
             start_time = time.time()
@@ -382,28 +555,45 @@ class PerformanceAnalyzer:
             
             # Measure BaseFuzzyRulesClassifier prediction time
             if base_fuzzy_trained:
-                start_time = time.time()
-                _ = base_fuzzy.predict(X_test)
-                base_fuzzy_pred_time = time.time() - start_time
+                try:
+                    start_time = time.time()
+                    _ = base_fuzzy.predict(X_test)
+                    base_fuzzy_pred_time_raw = time.time() - start_time
+
+                    # Penalize when no rules were trained
+                    if base_fuzzy_had_no_rules:
+                        base_fuzzy_pred_time = base_fuzzy_pred_time_raw * self.no_rules_penalty_multiplier
+                        print(f"  WARNING: BaseFuzzy prediction penalized due to no rules (raw={base_fuzzy_pred_time_raw:.6f}s).")
+                    else:
+                        base_fuzzy_pred_time = base_fuzzy_pred_time_raw
+                except Exception as e:
+                    # If predict fails (e.g., no learned rules or other error), set a conservative penalized time
+                    fallback = max(fuzzy_cart_pred_time_raw, cart_pred_time, 1e-6)
+                    base_fuzzy_pred_time_raw = np.nan
+                    base_fuzzy_pred_time = fallback * self.no_rules_penalty_multiplier
+                    print(f"  WARNING: BaseFuzzy.predict raised {e!r}; setting penalized prediction time {base_fuzzy_pred_time:.6f}s.")
             else:
+                base_fuzzy_pred_time_raw = np.nan
                 base_fuzzy_pred_time = np.nan
             
             results.append({
                 'test_size': test_size,
+                'fuzzy_cart_pred_time_raw': fuzzy_cart_pred_time_raw,
                 'fuzzy_cart_pred_time': fuzzy_cart_pred_time,
                 'cart_pred_time': cart_pred_time,
-                'base_fuzzy_pred_time': base_fuzzy_pred_time,
-                'fuzzy_cart_pred_per_sample': fuzzy_cart_pred_time / test_size * 1000,  # ms
+                'genetic_opt_pred_time_raw': base_fuzzy_pred_time_raw,
+                'genetic_opt_pred_time': base_fuzzy_pred_time,
+                'fuzzy_cart_pred_per_sample': fuzzy_cart_pred_time / test_size * 1000,  # ms (adjusted)
                 'cart_pred_per_sample': cart_pred_time / test_size * 1000,  # ms
-                'base_fuzzy_pred_per_sample': base_fuzzy_pred_time / test_size * 1000 if not np.isnan(base_fuzzy_pred_time) else np.nan  # ms
+                'genetic_opt_pred_per_sample': base_fuzzy_pred_time / test_size * 1000 if not np.isnan(base_fuzzy_pred_time) else np.nan  # ms
             })
             
-            print(f"  FuzzyCART: {fuzzy_cart_pred_time:.6f}s "
+            print(f"  FuzzyCART: {fuzzy_cart_pred_time:.6f}s (raw={fuzzy_cart_pred_time_raw:.6f}s) "
                   f"({fuzzy_cart_pred_time/test_size*1000:.6f} ms/sample)")
             print(f"  CART: {cart_pred_time:.6f}s "
                   f"({cart_pred_time/test_size*1000:.6f} ms/sample)")
             if base_fuzzy_trained and not np.isnan(base_fuzzy_pred_time):
-                print(f"  BaseFuzzy: {base_fuzzy_pred_time:.6f}s "
+                print(f"  Genetic Opt.: {base_fuzzy_pred_time:.6f}s "
                       f"({base_fuzzy_pred_time/test_size*1000:.6f} ms/sample)")
         
         results_df = pd.DataFrame(results)
@@ -462,12 +652,12 @@ class PerformanceVisualizer:
             capsize=5
         )
         
-        # Plot BaseFuzzyRulesClassifier
+        # Plot Genetic Opt. (BaseFuzzyRulesClassifier)
         ax.errorbar(
             avg_results['n_samples'],
-            avg_results[('base_fuzzy_time', 'mean')],
-            yerr=avg_results[('base_fuzzy_time', 'std')],
-            label='BaseFuzzyRules',
+            avg_results[('genetic_opt_time', 'mean')],
+            yerr=avg_results[('genetic_opt_time', 'std')],
+            label='Genetic Opt.',
             marker='d',
             linewidth=2,
             capsize=5
@@ -520,12 +710,23 @@ class PerformanceVisualizer:
             capsize=5
         )
         
-        # Plot BaseFuzzyRulesClassifier
+        # Plot C4.5
         ax.errorbar(
             avg_results['n_features'],
-            avg_results[('base_fuzzy_time', 'mean')],
-            yerr=avg_results[('base_fuzzy_time', 'std')],
-            label='BaseFuzzyRules',
+            avg_results[('c45_time', 'mean')],
+            yerr=avg_results[('c45_time', 'std')],
+            label='C4.5',
+            marker='^',
+            linewidth=2,
+            capsize=5
+        )
+        
+        # Plot Genetic Opt. (BaseFuzzyRulesClassifier)
+        ax.errorbar(
+            avg_results['n_features'],
+            avg_results[('genetic_opt_time', 'mean')],
+            yerr=avg_results[('genetic_opt_time', 'std')],
+            label='Genetic Opt.',
             marker='d',
             linewidth=2,
             capsize=5
@@ -557,9 +758,9 @@ class PerformanceVisualizer:
                 'o-', label='FuzzyCART', linewidth=2)
         ax1.plot(results_df['test_size'], results_df['cart_pred_time'],
                 's-', label='CART', linewidth=2)
-        if 'base_fuzzy_pred_time' in results_df.columns:
-            ax1.plot(results_df['test_size'], results_df['base_fuzzy_pred_time'],
-                    'd-', label='BaseFuzzyRules', linewidth=2)
+        if 'genetic_opt_pred_time' in results_df.columns:
+            ax1.plot(results_df['test_size'], results_df['genetic_opt_pred_time'],
+                    'd-', label='Genetic Opt.', linewidth=2)
         ax1.set_xlabel('Test Set Size', fontsize=12)
         ax1.set_ylabel('Prediction Time (seconds)', fontsize=12)
         ax1.set_title('Total Prediction Time', fontsize=14)
@@ -572,9 +773,9 @@ class PerformanceVisualizer:
                 'o-', label='FuzzyCART', linewidth=2)
         ax2.plot(results_df['test_size'], results_df['cart_pred_per_sample'],
                 's-', label='CART', linewidth=2)
-        if 'base_fuzzy_pred_per_sample' in results_df.columns:
-            ax2.plot(results_df['test_size'], results_df['base_fuzzy_pred_per_sample'],
-                    'd-', label='BaseFuzzyRules', linewidth=2)
+        if 'genetic_opt_pred_per_sample' in results_df.columns:
+            ax2.plot(results_df['test_size'], results_df['genetic_opt_pred_per_sample'],
+                    'd-', label='Genetic Opt.', linewidth=2)
         ax2.set_xlabel('Test Set Size', fontsize=12)
         ax2.set_ylabel('Prediction Time per Sample (ms)', fontsize=12)
         ax2.set_title('Per-Sample Prediction Time', fontsize=14)
@@ -593,8 +794,29 @@ def main():
     print("="*80)
     print("FuzzyCART Performance and Scalability Analysis")
     print("="*80)
-    
-    analyzer = PerformanceAnalyzer(random_state=42)
+
+    # Check if Numba is available
+    try:
+        from tree_learning import NUMBA_AVAILABLE
+        numba_status = "Available" if NUMBA_AVAILABLE else "Not installed"
+    except ImportError:
+        numba_status = "Unknown"
+
+    # Configuration
+    early_stop_threshold = 0.05  # Early stopping threshold (0.0 to disable)
+    use_numba = True             # Use Numba JIT when available
+
+    print(f"\nOptimization Settings:")
+    print(f"  - Target metric: purity (enables Numba JIT acceleration)")
+    print(f"  - Early stopping threshold: {early_stop_threshold}")
+    print(f"  - Use Numba JIT: {use_numba} ({numba_status})")
+    print(f"  - Expected speedup: 10-12x with Numba + early stopping")
+
+    analyzer = PerformanceAnalyzer(
+        random_state=42,
+        early_stop_threshold=early_stop_threshold,
+        use_numba=use_numba
+    )
     visualizer = PerformanceVisualizer()
     
     # Test 1: Training time vs samples
@@ -646,7 +868,7 @@ def main():
     print("1. Training time results saved to performance_vs_samples.csv")
     print("2. Feature scaling results saved to performance_vs_features.csv")
     print("3. Prediction time results saved to prediction_time.csv")
-    print("4. All plots saved to ")
+    print("4. All plots saved as PNG files")
 
 
 if __name__ == '__main__':

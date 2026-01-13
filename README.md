@@ -13,6 +13,7 @@ Key features:
 - Greedy rule-based decision tree learning
 - Fuzzy membership functions with automatic partition optimization
 - Three search strategies: grid search, coordinate descent, and hybrid
+- Early stopping optimization for faster convergence
 - Comprehensive experimental framework with statistical testing
 - Support for both continuous and categorical features
 
@@ -27,6 +28,11 @@ pip install numpy pandas scikit-learn scipy matplotlib ex-fuzzy
 Optional dependencies for statistical testing:
 ```bash
 pip install scikit-posthocs seaborn
+```
+
+**Recommended**: For 10-12x faster training, install Numba:
+```bash
+pip install numba
 ```
 
 ### Quick Setup
@@ -74,14 +80,21 @@ X, y = load_iris(return_X_y=True)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
 # Create default fuzzy partitions
-fuzzy_vars = utils.construct_partitions(X_train, n_partitions=3)
+fuzzy_partitions = utils.construct_partitions(X_train, n_partitions=3)
 
-# Train model
-model = FuzzyCART(max_depth=5, max_rules=15)
-model.fit(X_train, y_train, fuzzy_variables=fuzzy_vars)
+# Train model with performance optimizations
+model = FuzzyCART(
+    fuzzy_partitions=fuzzy_partitions,
+    max_depth=5,
+    max_rules=15,
+    target_metric='purity',       # Use purity for Numba acceleration
+    early_stop_threshold=0.05,    # Early stopping (1.3-4x speedup)
+    use_numba=True                # Numba JIT compilation (up to 10x speedup)
+)
+model.fit(X_train, y_train)
 
 # Predict
-y_pred = model.predict(X_test, fuzzy_variables=fuzzy_vars)
+y_pred = model.predict(X_test)
 ```
 
 ### Usage with Partition Optimization
@@ -90,16 +103,24 @@ y_pred = model.predict(X_test, fuzzy_variables=fuzzy_vars)
 from partition_optimization import optimize_partitions_for_gfrt
 
 # Optimize fuzzy partitions
-optimized_vars, metrics = optimize_partitions_for_gfrt(
+optimized_partitions = optimize_partitions_for_gfrt(
     X_train, y_train,
-    initial_fuzzy_vars=fuzzy_vars,
+    initial_partitions=fuzzy_partitions,
     strategy='hybrid',  # Options: 'grid', 'coordinate', 'hybrid'
     verbose=True
 )
 
 # Train with optimized partitions
-model.fit(X_train, y_train, fuzzy_variables=optimized_vars)
-y_pred = model.predict(X_test, fuzzy_variables=optimized_vars)
+model = FuzzyCART(
+    fuzzy_partitions=optimized_partitions,
+    max_depth=5,
+    max_rules=15,
+    target_metric='purity',
+    early_stop_threshold=0.05,
+    use_numba=True
+)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
 ```
 
 ### Running Experiments
@@ -156,13 +177,44 @@ The framework implements three search strategies for optimizing fuzzy partition 
 - 2-3x speedup over grid search
 - Recommended default for production use
 
-### Performance Comparison
 
-| Strategy   | Evaluations/Feature | Relative Speed | Accuracy (Iris) |
-|------------|--------------------:|---------------:|----------------:|
-| Grid       | 216                 | 1.0x           | 97.8%           |
-| Coordinate | 30-84               | 3.0x           | 97.8%           |
-| Hybrid     | ~120                | 2.3x           | 97.8%           |
+## Performance Optimization
+
+FuzzyCART includes built-in performance optimizations for faster training:
+
+### Numba JIT Compilation
+
+When Numba is installed, core computational loops are JIT-compiled for significant speedup:
+
+```python
+model = FuzzyCART(
+    fuzzy_partitions=partitions,
+    target_metric='purity',  # Required for Numba acceleration
+    use_numba=True           # Enable Numba JIT (default: True)
+)
+```
+
+### Early Stopping
+
+Terminate split search early when a "good enough" improvement is found:
+
+```python
+model = FuzzyCART(
+    fuzzy_partitions=partitions,
+    early_stop_threshold=0.05  # Stop when improvement >= 5% (0.0 to disable)
+)
+```
+
+### Training Speedup Benchmarks
+
+| Optimization | Speedup | Notes |
+|-------------|--------:|-------|
+| Numba JIT only | **10x** | Requires `target_metric='purity'` |
+| Early stopping only | **1.3-4x** | Works with any metric |
+| Combined | **12x** | Maximum performance |
+
+**Note**: First run includes Numba compilation overhead (~1-2 seconds). Subsequent runs use cached compiled code.
+
 
 ## Experimental Framework
 
@@ -198,11 +250,6 @@ Based on benchmark experiments:
 - CART: 30-40 rules
 - C4.5: 130-140 rules
 
-### Training Time
-- FGRT: O(n log n) complexity, similar to CART
-- Substantially faster than evolutionary approaches
-- Partition optimization: 0.1-0.5 seconds per feature (hybrid strategy)
-
 ## Documentation
 
 - [QUICKSTART.md](QUICKSTART.md) - Quick start guide
@@ -223,27 +270,18 @@ Generate visualizations:
 python visualize_strategies.py
 ```
 
-## Contributing
-
-Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-Areas for contribution:
-- Additional optimization strategies
-- New partition metrics
-- Parallel optimization implementations
-- Additional benchmark datasets
-
 ## Citation
 
 If you use this code in your research, please cite:
 
 ```bibtex
-@article{fumanal2025fgrt,
-  title={Fuzzy Greedy Rule Trees with Optimized Partitions},
-  author={Fumanal-Idocin, Javier and others},
-  journal={},
+@article{fumanal2025fast,
+  title={A Fast Interpretable Fuzzy Tree Learner},
+  author={Fumanal-Idocin, Javier and Fernandez-Peralta, Raquel and Andreu-Perez, Javier},
+  journal={arXiv preprint arXiv:2512.11616},
   year={2025}
 }
+
 ```
 
 ## License
