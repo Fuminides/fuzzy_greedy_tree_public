@@ -619,12 +619,12 @@ class PerformanceVisualizer:
         """
         fig, ax = plt.subplots(figsize=(12, 6))
         
-        # Plot FuzzyCART
+        # Plot FGRT (Fuzzy Greedy Rule Tree)
         ax.errorbar(
             avg_results['n_samples'],
             avg_results[('fuzzy_cart_time', 'mean')],
             yerr=avg_results[('fuzzy_cart_time', 'std')],
-            label='FuzzyCART',
+            label='FGRT',
             marker='o',
             linewidth=2,
             capsize=5
@@ -688,12 +688,12 @@ class PerformanceVisualizer:
         """
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Plot FuzzyCART
+        # Plot FGRT (Fuzzy Greedy Rule Tree)
         ax.errorbar(
             avg_results['n_features'],
             avg_results[('fuzzy_cart_time', 'mean')],
             yerr=avg_results[('fuzzy_cart_time', 'std')],
-            label='FuzzyCART',
+            label='FGRT',
             marker='o',
             linewidth=2,
             capsize=5
@@ -755,7 +755,7 @@ class PerformanceVisualizer:
         
         # Total prediction time
         ax1.plot(results_df['test_size'], results_df['fuzzy_cart_pred_time'],
-                'o-', label='FuzzyCART', linewidth=2)
+                'o-', label='FGRT', linewidth=2)
         ax1.plot(results_df['test_size'], results_df['cart_pred_time'],
                 's-', label='CART', linewidth=2)
         if 'genetic_opt_pred_time' in results_df.columns:
@@ -770,7 +770,7 @@ class PerformanceVisualizer:
         
         # Per-sample prediction time
         ax2.plot(results_df['test_size'], results_df['fuzzy_cart_pred_per_sample'],
-                'o-', label='FuzzyCART', linewidth=2)
+                'o-', label='FGRT', linewidth=2)
         ax2.plot(results_df['test_size'], results_df['cart_pred_per_sample'],
                 's-', label='CART', linewidth=2)
         if 'genetic_opt_pred_per_sample' in results_df.columns:
@@ -831,7 +831,9 @@ def main():
     fig = visualizer.plot_training_time_vs_samples(results_samples, avg_samples)
     fig.savefig('performance_vs_samples.png', 
                 dpi=150, bbox_inches='tight')
-    print("Saved plot: performance_vs_samples.png")
+    fig.savefig('performance_vs_samples.pdf', 
+                dpi=150, bbox_inches='tight')
+    print("Saved plots: performance_vs_samples.png, performance_vs_samples.pdf")
     
     # Test 2: Training time vs features
     print("\n\nTest 2: Training Time vs Number of Features")
@@ -845,7 +847,9 @@ def main():
     fig = visualizer.plot_training_time_vs_features(results_features, avg_features)
     fig.savefig('performance_vs_features.png',
                 dpi=150, bbox_inches='tight')
-    print("Saved plot: performance_vs_features.png")
+    fig.savefig('performance_vs_features.pdf',
+                dpi=150, bbox_inches='tight')
+    print("Saved plots: performance_vs_features.png, performance_vs_features.pdf")
     
     # Test 3: Prediction time
     print("\n\nTest 3: Prediction Time Analysis")
@@ -859,7 +863,9 @@ def main():
     fig = visualizer.plot_prediction_time(results_pred)
     fig.savefig('prediction_time.png',
                 dpi=150, bbox_inches='tight')
-    print("Saved plot: prediction_time.png")
+    fig.savefig('prediction_time.pdf',
+                dpi=150, bbox_inches='tight')
+    print("Saved plots: prediction_time.png, prediction_time.pdf")
     
     print("\n" + "="*80)
     print("Performance Analysis Complete!")
@@ -868,7 +874,7 @@ def main():
     print("1. Training time results saved to performance_vs_samples.csv")
     print("2. Feature scaling results saved to performance_vs_features.csv")
     print("3. Prediction time results saved to prediction_time.csv")
-    print("4. All plots saved as PNG files")
+    print("4. All plots saved as PNG and PDF files")
 
 
 if __name__ == '__main__':
