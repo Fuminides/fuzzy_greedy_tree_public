@@ -15,6 +15,330 @@ except ImportError:
     import fuzzy_sets as fs
     import utils
 
+# OPTIMIZATION: Try to import Numba for JIT compilation
+try:
+    from numba import njit, prange
+    NUMBA_AVAILABLE = True
+except ImportError:
+    NUMBA_AVAILABLE = False
+    # Fallback: create no-op decorator
+    def njit(*args, **kwargs):
+        def decorator(func):
+            return func
+        if len(args) == 1 and callable(args[0]):
+            return args[0]
+        return decorator
+    def prange(*args):
+        return range(*args)
+
+
+# ============================================================================
+# NUMBA-ACCELERATED CORE FUNCTIONS
+# ============================================================================
+
+@njit(cache=True)
+def _weighted_gini_numba(truth_values: np.ndarray, y_indices: np.ndarray, n_classes: int) -> float:
+    """
+    Numba-accelerated weighted Gini index computation.
+
+    Parameters
+    ----------
+    truth_values : np.ndarray
+        Membership weights for each sample.
+    y_indices : np.ndarray
+        Class indices (0 to n_classes-1) for each sample.
+    n_classes : int
+        Number of unique classes.
+
+    Returns
+    -------
+    float
+        Weighted Gini index.
+    """
+    n_samples = len(truth_values)
+    if n_samples == 0:
+        return np.inf
+
+    total_weight = 0.0
+    for i in range(n_samples):
+        total_weight += truth_values[i]
+
+    if total_weight == 0.0:
+        return np.inf
+
+    # Accumulate weighted class counts
+    class_weights = np.zeros(n_classes)
+    for i in range(n_samples):
+        class_weights[y_indices[i]] += truth_values[i]
+
+    # Compute Gini
+    gini_sum = 0.0
+    for c in range(n_classes):
+        prop = class_weights[c] / total_weight
+        gini_sum += prop * prop
+
+    return 1.0 - gini_sum
+
+
+@njit(cache=True)
+def _calculate_coverage_numba(truth_values: np.ndarray, total_samples: int) -> float:
+    """Numba-accelerated coverage calculation."""
+    total = 0.0
+    for i in range(len(truth_values)):
+        total += truth_values[i]
+    return total / total_samples
+
+
+@njit(cache=True)
+def _majority_class_numba(y_indices: np.ndarray, membership: np.ndarray, n_classes: int) -> int:
+    """
+    Numba-accelerated majority class computation using weighted voting.
+
+    Returns the class index with highest weighted vote.
+    """
+    weighted_counts = np.zeros(n_classes)
+    for i in range(len(y_indices)):
+        weighted_counts[y_indices[i]] += membership[i]
+
+    best_class = 0
+    best_count = weighted_counts[0]
+    for c in range(1, n_classes):
+        if weighted_counts[c] > best_count:
+            best_count = weighted_counts[c]
+            best_class = c
+
+    return best_class
+
+
+@njit(cache=True)
+def _compute_cci_numba(y_indices: np.ndarray, pre_yhat_indices: np.ndarray,
+                       new_yhat_indices: np.ndarray) -> float:
+    """
+    Numba-accelerated Complete Classification Index computation.
+
+    Measures improvement in classification accuracy.
+    """
+    n = len(y_indices)
+    if n == 0:
+        return 0.0
+
+    correct_pre = 0
+    correct_new = 0
+
+    for i in range(n):
+        if y_indices[i] == pre_yhat_indices[i]:
+            correct_pre += 1
+        if y_indices[i] == new_yhat_indices[i]:
+            correct_new += 1
+
+    acc_pre = correct_pre / n
+    acc_new = correct_new / n
+    improvement = acc_new - acc_pre
+
+    if acc_pre == 0.0:
+        return acc_new
+    else:
+        return improvement / acc_pre
+
+
+@njit(cache=True)
+def _evaluate_splits_purity_numba(
+    cached_memberships_flat: np.ndarray,
+    membership_offsets: np.ndarray,
+    n_fuzzy_sets_per_feature: np.ndarray,
+    existing_membership: np.ndarray,
+    legal_paths_flat: np.ndarray,
+    y_indices: np.ndarray,
+    n_classes: int,
+    coverage_threshold: float,
+    father_purity: float,
+    early_stop_threshold: float
+) -> tuple:
+    """
+    Numba-accelerated split evaluation for purity-based splitting.
+
+    Returns (best_improvement, best_feature, best_fuzzy_set, best_coverage, best_class).
+    """
+    n_samples = len(existing_membership)
+    n_features = len(n_fuzzy_sets_per_feature)
+
+    best_improvement = -np.inf
+    best_feature = -1
+    best_fuzzy_set = -1
+    best_coverage = 0.0
+    best_class = 0
+
+    path_offset = 0
+
+    for feature in range(n_features):
+        n_fz = n_fuzzy_sets_per_feature[feature]
+        mem_offset = membership_offsets[feature]
+
+        for fz_idx in range(n_fz):
+            # Check if this path is legal
+            if not legal_paths_flat[path_offset + fz_idx]:
+                continue
+
+            # Compute full path membership
+            full_path_membership = np.empty(n_samples)
+            for i in range(n_samples):
+                full_path_membership[i] = (
+                    cached_memberships_flat[mem_offset + fz_idx * n_samples + i]
+                    * existing_membership[i]
+                )
+
+            # Calculate coverage
+            coverage = _calculate_coverage_numba(full_path_membership, n_samples)
+            if coverage < coverage_threshold:
+                continue
+
+            # Calculate purity (weighted Gini)
+            purity = _weighted_gini_numba(full_path_membership, y_indices, n_classes)
+            improvement = father_purity - purity
+
+            if improvement > best_improvement:
+                best_improvement = improvement
+                best_feature = feature
+                best_fuzzy_set = fz_idx
+                best_coverage = coverage
+                best_class = _majority_class_numba(y_indices, full_path_membership, n_classes)
+
+                # Early stopping: if improvement is good enough, we can stop
+                if early_stop_threshold > 0 and best_improvement >= early_stop_threshold:
+                    return (best_improvement, best_feature, best_fuzzy_set,
+                            best_coverage, best_class)
+
+        path_offset += n_fz
+
+    return (best_improvement, best_feature, best_fuzzy_set, best_coverage, best_class)
+
+
+@njit(cache=True)
+def _compute_path_memberships_batch(
+    X_feature: np.ndarray,
+    path_features: np.ndarray,
+    path_fuzzy_sets: np.ndarray,
+    all_memberships_flat: np.ndarray,
+    membership_offsets: np.ndarray,
+    n_samples: int
+) -> np.ndarray:
+    """
+    Compute path membership for all samples in a batch.
+
+    Used for fast prediction across multiple leaves.
+    """
+    result = np.ones(n_samples)
+    n_path = len(path_features)
+
+    for p in range(n_path):
+        feature = path_features[p]
+        fz_set = path_fuzzy_sets[p]
+        offset = membership_offsets[feature] + fz_set * n_samples
+
+        for i in range(n_samples):
+            result[i] *= all_memberships_flat[offset + i]
+
+    return result
+
+
+@njit(cache=True)
+def _evaluate_splits_cci_numba(
+    cached_memberships_flat: np.ndarray,
+    membership_offsets: np.ndarray,
+    n_fuzzy_sets_per_feature: np.ndarray,
+    existing_membership: np.ndarray,
+    legal_paths_flat: np.ndarray,
+    y_indices: np.ndarray,
+    skeleton_yhat_indices: np.ndarray,
+    n_classes: int,
+    coverage_threshold: float,
+    tree_rules: int,
+    early_stop_threshold: float
+) -> tuple:
+    """
+    Numba-accelerated split evaluation for CCI-based splitting.
+
+    Returns (best_cci, best_purity, best_feature, best_fuzzy_set, best_coverage, best_class).
+    """
+    n_samples = len(existing_membership)
+    n_features = len(n_fuzzy_sets_per_feature)
+
+    if tree_rules <= 3:
+        best_cci = -np.inf
+    else:
+        best_cci = 0.0
+    best_purity = np.inf
+    best_feature = -1
+    best_fuzzy_set = -1
+    best_coverage = 0.0
+    best_class = 0
+
+    path_offset = 0
+
+    for feature in range(n_features):
+        n_fz = n_fuzzy_sets_per_feature[feature]
+        mem_offset = membership_offsets[feature]
+
+        for fz_idx in range(n_fz):
+            # Check if this path is legal
+            if not legal_paths_flat[path_offset + fz_idx]:
+                continue
+
+            # Compute full path membership
+            full_path_membership = np.empty(n_samples)
+            for i in range(n_samples):
+                full_path_membership[i] = (
+                    cached_memberships_flat[mem_offset + fz_idx * n_samples + i]
+                    * existing_membership[i]
+                )
+
+            # Calculate coverage
+            coverage = _calculate_coverage_numba(full_path_membership, n_samples)
+            if coverage < coverage_threshold:
+                continue
+
+            # Find majority class for this split
+            child_class = _majority_class_numba(y_indices, full_path_membership, n_classes)
+
+            # Compute modified predictions (child prediction for significant membership)
+            new_yhat_indices = np.empty(n_samples, dtype=np.int32)
+            for i in range(n_samples):
+                if full_path_membership[i] > 0.01:
+                    new_yhat_indices[i] = child_class
+                else:
+                    new_yhat_indices[i] = skeleton_yhat_indices[i]
+
+            # Compute CCI
+            cci = _compute_cci_numba(y_indices, skeleton_yhat_indices, new_yhat_indices)
+
+            # Compute purity for tie-breaking
+            purity = _weighted_gini_numba(full_path_membership, y_indices, n_classes)
+
+            if cci > best_cci:
+                best_cci = cci
+                best_purity = purity
+                best_feature = feature
+                best_fuzzy_set = fz_idx
+                best_coverage = coverage
+                best_class = child_class
+
+                # Early stopping
+                if early_stop_threshold > 0 and best_cci >= early_stop_threshold:
+                    return (best_cci, best_purity, best_feature, best_fuzzy_set,
+                            best_coverage, best_class)
+
+            elif cci == best_cci and purity < best_purity:
+                best_cci = cci
+                best_purity = purity
+                best_feature = feature
+                best_fuzzy_set = fz_idx
+                best_coverage = coverage
+                best_class = child_class
+
+        path_offset += n_fz
+
+    return (best_cci, best_purity, best_feature, best_fuzzy_set, best_coverage, best_class)
+
 
 
 
@@ -347,10 +671,10 @@ class FuzzyCART(ClassifierMixin):
         return self._membership_cache
 
 
-    def __init__(self, fuzzy_partitions: list[fs.fuzzyVariable], max_rules: int = 10, max_depth: int = 5, coverage_threshold: float = 0.00, min_improvement=0.01, ccp_alpha: float = 0.0, target_metric: str = 'cci', sample_for_splits: bool = None, sample_size: int = 10000):
+    def __init__(self, fuzzy_partitions: list[fs.fuzzyVariable], max_rules: int = 10, max_depth: int = 5, coverage_threshold: float = 0.00, min_improvement=0.01, ccp_alpha: float = 0.0, target_metric: str = 'cci', sample_for_splits: bool = None, sample_size: int = 10000, early_stop_threshold: float = 0.0, use_numba: bool = True):
         """
         Initialize the Fuzzy CART classifier.
-        
+
         Parameters
         ----------
         sample_for_splits : bool, optional
@@ -358,6 +682,13 @@ class FuzzyCART(ClassifierMixin):
             If None, automatically enabled for datasets > 50,000 samples.
         sample_size : int, default=10000
             Number of samples to use for split evaluation when sampling is enabled.
+        early_stop_threshold : float, default=0.0
+            If > 0, stops searching for splits once an improvement above this
+            threshold is found. Set to 0.0 to disable early stopping.
+            Recommended values: 0.05-0.1 for faster training with minimal quality loss.
+        use_numba : bool, default=True
+            If True and Numba is available, use JIT-compiled functions for
+            faster computation. Falls back to NumPy if Numba is not installed.
         """
         self.fuzzy_partitions = fuzzy_partitions
         self.max_depth = max_depth
@@ -370,15 +701,21 @@ class FuzzyCART(ClassifierMixin):
         self.target_metric = target_metric
         self.sample_for_splits = sample_for_splits
         self.sample_size = sample_size
-        
+        self.early_stop_threshold = early_stop_threshold
+        self.use_numba = use_numba and NUMBA_AVAILABLE
+
         # OPTIMIZATION: Add membership cache to avoid recomputing
         self._membership_cache = {}
         self._last_X_shape = None
-        
+
         # OPTIMIZATION: Add computation caches for large datasets
         self._coverage_cache = {}
         self._gini_cache = {}
         self._prediction_cache = None
+
+        # OPTIMIZATION: Cache for class index mapping (for Numba functions)
+        self._class_to_idx = None
+        self._y_indices_cache = None
 
 
     def fit(self, X: np.array, y: np.array, patience:int = 3):
@@ -507,28 +844,87 @@ class FuzzyCART(ClassifierMixin):
         else:
             cached_memberships = self._get_cached_memberships(X_sample)
 
-        for feature in range(n_features):
-            for fz_index in range(len(self.fuzzy_partitions[feature])):
-                if actual_path[feature][fz_index]:
-                    # Use cached membership
-                    memberships = cached_memberships[feature][fz_index]
-                    full_path_membership = memberships * existing_membership
-                    
-                    purity = compute_fuzzy_purity(full_path_membership, y_sample, self.coverage_threshold)
-                    debug_cache[feature][fz_index] = purity
-                    coverage = _calculate_coverage(full_path_membership, len(y_sample))
-                    coverage_cache[feature][fz_index] = coverage
-                    purity_improvement = father_purity - purity
-                    
-                    # OPTIMIZATION: Compute child prediction directly without dummy nodes
-                    node_prediction = self._majority_class(y_sample, full_path_membership)
+        # OPTIMIZATION: Use Numba-accelerated evaluation when available
+        if self.use_numba and NUMBA_AVAILABLE:
+            # Prepare data for Numba function
+            n_samples = len(existing_membership)
+            n_classes = len(self.classes_)
 
-                    if purity_improvement > best_purity_improvement:
-                        best_purity_improvement = purity_improvement
-                        best_feature = feature
-                        best_fuzzy_set = fz_index
-                        best_coverage = coverage
-                        child_decision = node_prediction
+            # Build class index mapping
+            if self._class_to_idx is None:
+                self._class_to_idx = {cls: idx for idx, cls in enumerate(self.classes_)}
+
+            y_indices = np.array([self._class_to_idx.get(cls, 0) for cls in y_sample], dtype=np.int32)
+
+            # Flatten cached memberships for Numba
+            n_fuzzy_sets_per_feature = np.array([len(self.fuzzy_partitions[i]) for i in range(n_features)], dtype=np.int32)
+            membership_offsets = np.zeros(n_features, dtype=np.int64)
+            total_fz = 0
+            for i in range(n_features):
+                membership_offsets[i] = total_fz * n_samples
+                total_fz += n_fuzzy_sets_per_feature[i]
+
+            cached_memberships_flat = np.zeros(total_fz * n_samples)
+            offset = 0
+            for feature in range(n_features):
+                for fz_idx in range(n_fuzzy_sets_per_feature[feature]):
+                    cached_memberships_flat[offset:offset + n_samples] = cached_memberships[feature][fz_idx]
+                    offset += n_samples
+
+            # Flatten legal paths
+            legal_paths_flat = np.concatenate([actual_path[i].astype(np.bool_) for i in range(n_features)])
+
+            # Call Numba-accelerated function
+            (best_purity_improvement, best_feature, best_fuzzy_set, best_coverage, best_class_idx) = \
+                _evaluate_splits_purity_numba(
+                    cached_memberships_flat,
+                    membership_offsets,
+                    n_fuzzy_sets_per_feature,
+                    existing_membership.astype(np.float64),
+                    legal_paths_flat,
+                    y_indices,
+                    n_classes,
+                    self.coverage_threshold,
+                    father_purity,
+                    self.early_stop_threshold
+                )
+
+            if best_feature != -1:
+                child_decision = self.classes_[best_class_idx]
+            else:
+                child_decision = None
+
+        else:
+            # Fallback: Original NumPy implementation with early stopping
+            for feature in range(n_features):
+                for fz_index in range(len(self.fuzzy_partitions[feature])):
+                    if actual_path[feature][fz_index]:
+                        # Use cached membership
+                        memberships = cached_memberships[feature][fz_index]
+                        full_path_membership = memberships * existing_membership
+
+                        purity = compute_fuzzy_purity(full_path_membership, y_sample, self.coverage_threshold)
+                        debug_cache[feature][fz_index] = purity
+                        coverage = _calculate_coverage(full_path_membership, len(y_sample))
+                        coverage_cache[feature][fz_index] = coverage
+                        purity_improvement = father_purity - purity
+
+                        # OPTIMIZATION: Compute child prediction directly without dummy nodes
+                        node_prediction = self._majority_class(y_sample, full_path_membership)
+
+                        if purity_improvement > best_purity_improvement:
+                            best_purity_improvement = purity_improvement
+                            best_feature = feature
+                            best_fuzzy_set = fz_index
+                            best_coverage = coverage
+                            child_decision = node_prediction
+
+                            # OPTIMIZATION: Early stopping if improvement is good enough
+                            if self.early_stop_threshold > 0 and best_purity_improvement >= self.early_stop_threshold:
+                                break
+                # Early stopping across features
+                if self.early_stop_threshold > 0 and best_purity_improvement >= self.early_stop_threshold:
+                    break
 
         if best_feature != -1:
             node['aux_purity_cache'] = {
@@ -654,7 +1050,7 @@ class FuzzyCART(ClassifierMixin):
 
         # Combine paths: element-wise AND for each feature
         legal_paths = [np.logical_and(node['father_path'][i], node['child_splits'][i]) for i in range(len(node['father_path']))]
-        
+
         # OPTIMIZATION: Get baseline prediction only once (removed redundant condition)
         skeleton_yhat = self.predict(X_sample)
 
@@ -670,49 +1066,116 @@ class FuzzyCART(ClassifierMixin):
         else:
             cached_memberships = self._get_cached_memberships(X_sample)
 
-        for feature in range(n_features):
-            for fz_index in range(len(self.fuzzy_partitions[feature])):
-                if legal_paths[feature][fz_index]:
-                    # Use cached membership
-                    memberships = cached_memberships[feature][fz_index]
-                    full_path_membership = memberships * existing_membership
+        # OPTIMIZATION: Use Numba-accelerated evaluation when available
+        # NOTE: CCI Numba optimization is disabled pending bug fix - using early stopping only
+        # The purity-based Numba optimization (target_metric='purity') works correctly.
+        if False and self.use_numba and NUMBA_AVAILABLE:
+            # Prepare data for Numba function
+            n_samples_eval = len(existing_membership)
+            n_classes = len(self.classes_)
 
-                    # OPTIMIZATION: Early skip for very low coverage splits (large datasets)
-                    coverage = np.sum(full_path_membership) / len(y_sample)
-                    if coverage < self.coverage_threshold:
-                        continue
+            # Build class index mapping
+            if self._class_to_idx is None:
+                self._class_to_idx = {cls: idx for idx, cls in enumerate(self.classes_)}
 
-                    # OPTIMIZATION: Compute child prediction directly without dummy nodes
-                    child_prediction = self._majority_class(y_sample, full_path_membership)
-                    
-                    # OPTIMIZATION: Compute CCI directly without full tree prediction
-                    # Create a modified prediction where samples with this membership get the child prediction
-                    skeleton_yhat_child = skeleton_yhat.copy()
-                    # Only update predictions for samples with significant membership (threshold to avoid noise)
-                    significant_membership = full_path_membership > 0.01
-                    skeleton_yhat_child[significant_membership] = child_prediction
-                    
-                    cci = compute_fuzzy_cci(y_sample, full_path_membership, skeleton_yhat, skeleton_yhat_child, self.coverage_threshold)
-                    purity = compute_fuzzy_purity(full_path_membership, y_sample, self.coverage_threshold)
+            y_indices = np.array([self._class_to_idx.get(cls, 0) for cls in y_sample], dtype=np.int32)
+            skeleton_yhat_indices = np.array([self._class_to_idx.get(cls, 0) for cls in skeleton_yhat], dtype=np.int32)
 
-                    debug_cache_cci[feature][fz_index] = cci
-                    debug_cache_purity[feature][fz_index] = purity
-                    coverage_cache[feature][fz_index] = coverage
+            # Flatten cached memberships for Numba
+            n_fuzzy_sets_per_feature = np.array([len(self.fuzzy_partitions[i]) for i in range(n_features)], dtype=np.int32)
+            membership_offsets = np.zeros(n_features, dtype=np.int64)
+            total_fz = 0
+            for i in range(n_features):
+                membership_offsets[i] = total_fz * n_samples_eval
+                total_fz += n_fuzzy_sets_per_feature[i]
 
-                    if cci > best_cci:
-                        best_cci = cci
-                        best_feature = feature
-                        best_fuzzy_set = fz_index
-                        best_coverage = coverage
-                        child_decision = child_prediction
-                        best_purity = purity
-                    elif cci == best_cci and purity < best_purity:
-                        best_cci = cci
-                        best_feature = feature
-                        best_fuzzy_set = fz_index
-                        best_coverage = coverage
-                        child_decision = child_prediction
-                        best_purity = purity
+            cached_memberships_flat = np.zeros(total_fz * n_samples_eval)
+            offset = 0
+            for feature in range(n_features):
+                for fz_idx in range(n_fuzzy_sets_per_feature[feature]):
+                    cached_memberships_flat[offset:offset + n_samples_eval] = cached_memberships[feature][fz_idx]
+                    offset += n_samples_eval
+
+            # Flatten legal paths
+            legal_paths_flat = np.concatenate([legal_paths[i].astype(np.bool_) for i in range(n_features)])
+
+            # Call Numba-accelerated function
+            (best_cci, best_purity, best_feature, best_fuzzy_set, best_coverage, best_class_idx) = \
+                _evaluate_splits_cci_numba(
+                    cached_memberships_flat,
+                    membership_offsets,
+                    n_fuzzy_sets_per_feature,
+                    existing_membership.astype(np.float64),
+                    legal_paths_flat,
+                    y_indices,
+                    skeleton_yhat_indices,
+                    n_classes,
+                    self.coverage_threshold,
+                    self.tree_rules,
+                    self.early_stop_threshold
+                )
+
+            if best_feature != -1:
+                child_decision = self.classes_[best_class_idx]
+            else:
+                child_decision = None
+
+        else:
+            # Fallback: Original NumPy implementation with early stopping
+            should_stop_early = False
+
+            for feature in range(n_features):
+                if should_stop_early:
+                    break
+
+                for fz_index in range(len(self.fuzzy_partitions[feature])):
+                    if legal_paths[feature][fz_index]:
+                        # Use cached membership
+                        memberships = cached_memberships[feature][fz_index]
+                        full_path_membership = memberships * existing_membership
+
+                        # OPTIMIZATION: Early skip for very low coverage splits (large datasets)
+                        coverage = np.sum(full_path_membership) / len(y_sample)
+                        if coverage < self.coverage_threshold:
+                            continue
+
+                        # OPTIMIZATION: Compute child prediction directly without dummy nodes
+                        child_prediction = self._majority_class(y_sample, full_path_membership)
+
+                        # OPTIMIZATION: Compute CCI directly without full tree prediction
+                        # Create a modified prediction where samples with this membership get the child prediction
+                        skeleton_yhat_child = skeleton_yhat.copy()
+                        # Only update predictions for samples with significant membership (threshold to avoid noise)
+                        significant_membership = full_path_membership > 0.01
+                        skeleton_yhat_child[significant_membership] = child_prediction
+
+                        cci = compute_fuzzy_cci(y_sample, full_path_membership, skeleton_yhat, skeleton_yhat_child, self.coverage_threshold)
+                        purity = compute_fuzzy_purity(full_path_membership, y_sample, self.coverage_threshold)
+
+                        debug_cache_cci[feature][fz_index] = cci
+                        debug_cache_purity[feature][fz_index] = purity
+                        coverage_cache[feature][fz_index] = coverage
+
+                        if cci > best_cci:
+                            best_cci = cci
+                            best_feature = feature
+                            best_fuzzy_set = fz_index
+                            best_coverage = coverage
+                            child_decision = child_prediction
+                            best_purity = purity
+
+                            # OPTIMIZATION: Early stopping if CCI improvement is good enough
+                            if self.early_stop_threshold > 0 and best_cci >= self.early_stop_threshold:
+                                should_stop_early = True
+                                break
+
+                        elif cci == best_cci and purity < best_purity:
+                            best_cci = cci
+                            best_feature = feature
+                            best_fuzzy_set = fz_index
+                            best_coverage = coverage
+                            child_decision = child_prediction
+                            best_purity = purity
 
         if best_feature != -1:
             node['aux_purity_cache'] = {
