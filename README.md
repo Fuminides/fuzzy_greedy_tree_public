@@ -237,25 +237,7 @@ The repository includes a comprehensive experimental suite for:
 - Prediction time analysis
 - Memory consumption profiling
 
-## Results
 
-### Accuracy
-Based on benchmark experiments:
-- FGRT: 79-80% average accuracy across datasets
-- CART: ~81% average accuracy
-- C4.5: ~80% average accuracy
-
-### Model Complexity
-- FGRT: 13-15 rules, 2-3 conditions per rule
-- CART: 30-40 rules
-- C4.5: 130-140 rules
-
-## Documentation
-
-- [QUICKSTART.md](QUICKSTART.md) - Quick start guide
-- [TECHNICAL_REPORT_PARTITION_OPTIMIZATION.md](TECHNICAL_REPORT_PARTITION_OPTIMIZATION.md) - Detailed technical documentation
-- [SEARCH_STRATEGIES.md](SEARCH_STRATEGIES.md) - Strategy comparison and selection guide
-- [PARTITION_OPTIMIZATION_EXPERIMENTS.md](PARTITION_OPTIMIZATION_EXPERIMENTS.md) - Experimental protocol
 
 ## Testing
 
@@ -270,9 +252,10 @@ Generate visualizations:
 python visualize_strategies.py
 ```
 
+
 ## Citation
 
-If you use this code in your research, please cite:
+If you use this code in your research, please cite the following:
 
 ```bibtex
 @article{fumanal2025fast,
