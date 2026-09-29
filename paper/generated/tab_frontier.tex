@@ -1,0 +1,45 @@
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Accuracy and selective-risk AURC on the thirty tabular benchmarks} (mean\,$\pm$\,std over datasets, 0--100 scale; lower AURC is better; AURC ranks test points by the maximum predicted probability, for FERL the normalised soft vote). ``Size'' is the number of leaves for trees and of rules for rule sets and rule ensembles; it is comparable within a family and only an order-of-magnitude signal across families. Bold: best interpretable model; underlined: best non-interpretable model. $^{\dagger}$The credal C4.5 tree and its set-valued variant ICDT share one tree and one point prediction; they differ only in the set output (Table~\ref{tab:credal}). $^{\ddagger}$Band-width rule chosen in each training fold by inner 3-fold cross-validation (Brier score) among the bootstrap rule and 0.25, 0.5 and 1 node-weighted standard deviations. FUCS is at chance level on \emph{optdigits} (9.9\%), which lowers its mean; without that dataset it averages 79.5.}
+\label{tab:frontier}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Method & Acc.\ $\uparrow$ & Size & AURC $\downarrow$\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Trees \& rule ensembles}}\\
+CART & 79.76\,$\pm$\,11.69 & 175 & 19.89\,$\pm$\,10.91\\
+C4.5 & 78.19\,$\pm$\,12.34 & 254 & 18.07\,$\pm$\,12.20\\
+FIGS & 80.63\,$\pm$\,10.67 & 28 & 15.22\,$\pm$\,10.73\\
+RuleFit & \textbf{83.67\,$\pm$\,10.29} & 223 & \textbf{7.87\,$\pm$\,7.37}\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Fuzzy rule-based}}\\
+FURIA & 78.51\,$\pm$\,13.57 & 69 & 17.42\,$\pm$\,13.94\\
+FUCS (DS) & 77.20\,$\pm$\,18.09 & 1547 & 18.37\,$\pm$\,17.94\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Neural \& sampled rule learners}}\\
+RRL & 77.95\,$\pm$\,13.71 & 201 & 13.89\,$\pm$\,11.86\\
+RL-Net & 74.81\,$\pm$\,13.00 & 195 & 20.80\,$\pm$\,10.51\\
+NeuRules & 79.27\,$\pm$\,11.61 & 19 & 14.07\,$\pm$\,11.10\\
+SamRuLe & 70.53\,$\pm$\,12.65 & 15 & 20.07\,$\pm$\,10.18\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Credal \& evidential}}\\
+NCC & 77.97\,$\pm$\,12.63 & 290 & 12.07\,$\pm$\,10.31\\
+CDT$^{\dagger}$ & 76.60\,$\pm$\,11.50 & 125 & 13.90\,$\pm$\,10.21\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{FERL family (ours)}}\\
+FERL-compact & 77.89\,$\pm$\,11.44 & 7 & 17.66\,$\pm$\,12.28\\
+FERL-medium & 79.57\,$\pm$\,9.46 & 45 & 12.50\,$\pm$\,8.04\\
+FERL-deep & 83.23\,$\pm$\,10.27 & 143 & 9.21\,$\pm$\,8.33\\
+FERL-deep, tuned width$^{\ddagger}$ & 83.65\,$\pm$\,10.39 & 100 & 8.28\,$\pm$\,7.87\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Linear model}}\\
+Logistic reg. & 81.13\,$\pm$\,12.66 & -- & 10.59\,$\pm$\,11.05\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Non-interpretable}}\\
+RF & \underline{86.62\,$\pm$\,11.10} & -- & \underline{6.26\,$\pm$\,7.96}\\
+GB & 85.58\,$\pm$\,10.67 & -- & 6.60\,$\pm$\,7.36\\
+EDL & 84.71\,$\pm$\,11.15 & -- & 7.30\,$\pm$\,8.12\\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -2,51 +2,39 @@
 
 Purpose
 -------
-This file is written to help Claude (or other LLMs) quickly understand the repository scope and how to help with code, experiments, and reproducibility. The project implements a fuzzy decision-tree algorithm (FuzzyCART), partition optimization strategies (grid / coordinate / hybrid), and a performance analysis suite used for a research paper.
+This is the public code of the paper "Evidential Rule Learning for Interpretable Classification with Abstention" (FERL, Fast Evidential Rule Learning). It holds the library, the experiment harness, the result files behind the tables, and the scripts that rebuild every table and figure.
+
+The code of the earlier paper (FGRT with partition optimization, arXiv:2512.11616) is kept under the git tag `fgrt-arxiv-2512.11616`.
 
 Key concepts to know
 ---------------------
-- FuzzyCART: A fuzzy extension of CART that uses fuzzy partitions for splits and evaluates splits using metrics such as CCI (Complete Classification Index) and weighted Gini.
-- Partition optimization: Search strategies (`grid`, `coordinate`, `hybrid`) for tuning fuzzy partition parameters to improve separability.
-- Baselines included: CART (DecisionTreeClassifier from scikit-learn), C4.5 (entropy criterion), and a genetic/evolutionary fuzzy rules baseline (named in code as `BaseFuzzyRulesClassifier` and displayed as "Genetic Opt.").
-
-Where timing / runtime comparisons happen
----------------------------------------
-- `examples/strategy_comparison_example.py`: computes optimization times (`opt_time`) per strategy and prints speed-up ratios.
-- `visualize_strategies.py`: plots optimization times and time vs improvement trade-offs (bar + scatter plots).
-- `performance_analysis.py`: `PerformanceAnalyzer` measures training time vs samples, training time vs features, and prediction time. This is the authoritative place for runtime and memory analysis.
+- FERL: a fuzzy rule tree whose fired rules are belief masses for Dempster-Shafer evidence. Outputs: point label, belief/plausibility, set-valued prediction (abstention), near-OOD score.
+- Three paper variants: FERL-compact (`make("ferl-compact")`), FERL-medium (`make("ferl-medium")`), FERL-deep (`make("ferl-deep")`, a `LearnedFuzzyTree`). `tests/test_variant_matrix.py` checks them against Table 1 of the paper.
+- `FERL-enhanced` / `ferl-enhanced` is a configuration that is not a paper variant.
 
 Important files
 ---------------
-- `tree_learning.py` — FuzzyCART implementation (training, splitting, prediction). Hotspots: split evaluation loops, membership computations, prediction loops.
-- `partition_optimization.py` — partition encoding and search strategies (grid, coordinate, hybrid).
-- `performance_analysis.py` — performance tests, measures, and plotting utilities.
-- `visualize_strategies.py` and `examples/strategy_comparison_example.py` — reproducible examples and visuals.
-- `requirements.txt` — Python dependencies.
-- `results/` — generated CSVs and saved plots used in manuscript tables / figures.
+- `ferl/core/tree_learning.py` — `FuzzyCART` (compact and medium variants).
+- `ferl/core/learned_tree.py` — `LearnedFuzzyTree`, `LearnedFuzzyTreeCV` (deep variant).
+- `ferl/pipeline/ferl_pipeline.py` — `make()` and the `CONFIGS` registry.
+- `ferl_fast/` — optional Cython kernels (`python ferl_fast/setup.py build_ext --inplace`).
+- `experiments/benchmark2/` — main benchmark: `harness.py` fits, `score.py` scores, `models.py` is the model registry.
+- `experiments/paper_assets/` — table and figure builders. They read `results/` and write `paper/generated/` and `paper/figures/`.
+- `REPRODUCE.md` — the command and result file behind each table and figure.
 
 How to run common tasks
 -----------------------
-- Quick example: `python examples/strategy_comparison_example.py`
-- Performance suite: `python performance_analysis.py` (generates CSVs and plots)
-- Visualizations: `python visualize_strategies.py` or run scripts that call the visualizer
-- Tests: `pytest -q` (project includes unit tests)
+- Tests: `make test`, or `pytest -q tests`
+- Tables and figures from stored results: `make tables`
+- Rerun experiments: see the targets in `Makefile` (`tabular`, `ablations`, `ood`, ...)
+- Run every script from the repository root. Datasets are read from `KEEL_DIR` (default `../keel_datasets`; `make data` downloads them).
 
 Reproducibility notes
 ---------------------
-- Many scripts use `random_state` in calls and the `PerformanceAnalyzer` supports `n_trials` to average times.
-- For large datasets, `FuzzyCART` supports sampling of candidate splits (`sample_for_splits`, `sample_size`).
-
-Suggested naming conventions & current mapping
----------------------------------------------
-- `BaseFuzzyRulesClassifier` → displayed as **Genetic Opt.** in plots and results (so CSV headers, legends, and prints were updated).
-
+- The stored result files use the benchmark keys `FERL-compact`, `FERL-medium`, `FERL-deep`. Do not rename keys in the code without renaming them in `results/`.
+- `make tables` must give the same `paper/generated/*.tex` as the committed files.
 
 Security, privacy, and license
 ------------------------------
-- No user PII or private data is included in the repo. Example datasets use scikit-learn or synthetic data.
-- The project uses the repository license (`LICENSE` file). For public distribution, ensure code and figures follow the license terms.
-
-
-
-_File created to help Claude quickly be effective at reviewing, debugging, and optimizing this research codebase._
+- No user PII or private data is included in the repo.
+- MIT license (`LICENSE` file).

@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\small
+\caption{Split-criterion ablation for FERL-deep (the standalone learned tree) on the thirty tabular benchmarks: weighted Gini vs.\ the Complete Classification Index, with the outer folds, held-out calibration split, and depth fixed. Accuracy is on a 0--100 scale (mean over datasets). For the learned-threshold deep tree, CCI wins on only 6 of $30$ datasets and is 0.71 points lower on average, on both the binary and multiclass subsets (Pearson $r{=}-0.07$ between $\Delta$ and class count $C$).}
+\label{tab:cci-gini-learned}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Subset & \# & Gini & CCI & $\Delta$\\
+\midrule
+Binary ($C{=}2$) & 18 & 83.32 & 82.45 & -0.87\\
+Multiclass ($C{>}2$) & 12 & 83.09 & 82.63 & -0.46\\
+\midrule
+\emph{All} & 30 & 83.23 & 82.52 & -0.71\\
+\bottomrule
+\end{tabular}
+\end{table}

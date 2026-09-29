@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\caption{\textbf{Evidence sources and combination rule for FERL-deep} (30 datasets, 5 folds; one fitted tree per fold, only the read-out changes). All entries except set size are on a 0--100 scale. Accuracy, AURC and ECE use each read-out's pignistic probabilities. The average of the leaf masses is the normalised soft vote that FERL reports as its point prediction; Dempster's rule over the leaves gives its sets and ignorance. Abst.\ is the rate of full abstention $S(x)=\Theta$ (for binary tasks every non-singleton set is a full abstention); Sgl.\ risk is the error rate of singleton outputs.}
+\label{tab:decision-rule-ablation}
+\begin{tabular}{@{}lcccccccccc@{}}
+\toprule
+Read-out & Acc. & AURC & ECE & Determ. & Cov. & Size & $u_{65}$ & Ign. & Abst. & Sgl.\ risk\\
+\midrule
+Dempster, all nodes & 80.6 & 10.3 & 14.9 & 99.9 & 80.7 & 1.00 & 80.7 & 0.1 & 0.0 & 19.3\\
+Dempster, leaves (sets, ignorance) & 83.2 & 10.1 & 15.8 & 74.3 & 92.3 & 1.70 & 79.5 & 22.9 & 24.3 & 11.7\\
+Cautious rule, leaves & 69.6 & 17.8 & 22.1 & 24.0 & 96.8 & 3.05 & 59.6 & 37.2 & 75.3 & 15.3\\
+Average of leaves (point label) & 83.2 & 9.2 & 11.3 & 98.7 & 83.7 & 1.03 & 83.1 & 0.7 & 1.0 & 16.5\\
+Support-discounted average, leaves & 83.1 & 9.8 & 20.0 & 42.4 & 97.9 & 2.38 & 70.5 & 43.3 & 57.1 & 6.6\\
+\bottomrule
+\end{tabular}
+\end{table}

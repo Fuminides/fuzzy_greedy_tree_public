@@ -1,0 +1,25 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{\textbf{Median fit time in seconds} over 5 seeded stratified 70/30 train/test splits, one CPU, one process. Datasets are ordered by the input-matrix size $N\!\times\!d$ (Table~\ref{tab:datasets}). FERL-compact and FERL-medium use the compiled \texttt{ferl\_fast} kernels; FERL-deep is pure NumPy. Per-seed timings and interquartile ranges are in the released CSV files.}
+\label{tab:runtime}
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{FERL} & \multicolumn{5}{c}{Baselines} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-9}
+Dataset & compact & medium & deep & CART & C4.5 & FIGS & FURIA & RuleFit \\
+\midrule
+glass & 0.054 & 0.287 & 0.132 & 0.002 & 0.246 & 0.132 & 0.826 & 10.4 \\
+wine & 0.024 & 0.410 & 0.063 & 0.002 & 0.125 & 0.021 & 0.868 & 6.11 \\
+heart & 0.034 & 0.181 & 0.158 & 0.002 & 0.094 & 0.284 & 0.429 & 1.57 \\
+australian & 0.015 & 0.252 & 0.342 & 0.003 & 0.316 & 0.138 & 0.633 & 1.41 \\
+banana & 0.043 & 2.35 & 2.36 & 0.008 & 4.15 & 0.490 & 2.92 & 4.84 \\
+ionosphere & 0.060 & 1.04 & 0.185 & 0.005 & 0.940 & 0.076 & 1.68 & 1.90 \\
+vehicle & 0.137 & 2.21 & 0.634 & 0.009 & 2.89 & 0.374 & 3.66 & 12.3 \\
+german & 0.018 & 0.187 & 0.445 & 0.003 & 0.555 & 0.226 & 0.530 & 1.22 \\
+segment & 0.224 & 3.34 & 0.461 & 0.015 & 20.8 & 0.339 & 6.11 & 27.0 \\
+spambase & 2.78 & 5.65 & 1.64 & 0.075 & 37.0 & 1.50 & 12.9 & 6.07 \\
+\bottomrule
+\end{tabular}
+\end{table}

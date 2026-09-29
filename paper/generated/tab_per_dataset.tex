@@ -1,0 +1,45 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{\textbf{Per-dataset accuracy on the 30 tabular benchmarks} for four representative methods (mean over the five folds; $n$, $d$ and $C$ are the numbers of samples, features and classes). Rows are sorted by $\Delta=\text{FERL-deep}-\text{LR}$ ($>0$ favours FERL-deep).}
+\label{tab:supp-frontier-nuance}
+\begin{tabular}{@{}lrrrccccr@{}}
+\toprule
+Dataset & $n$ & $d$ & $C$ & FERL-deep & FERL-medium & LR & FIGS & $\Delta$\\
+\midrule
+banana & 5300 & 2 & 2 & \textbf{89.8} & 81.7 & 57.1 & 89.1 & +32.8\\
+vowel & 990 & 13 & 11 & \textbf{79.0} & 71.8 & 65.9 & 64.9 & +13.1\\
+ring & 7400 & 20 & 2 & 88.4 & 82.5 & 75.8 & \textbf{88.4} & +12.5\\
+phoneme & 5404 & 5 & 2 & \textbf{86.5} & 79.9 & 75.3 & 83.7 & +11.2\\
+glass & 214 & 9 & 6 & \textbf{69.8} & 66.3 & 59.5 & 68.8 & +10.2\\
+ecoli & 336 & 7 & 8 & \textbf{82.6} & 80.4 & 75.2 & 78.9 & +7.4\\
+satimage & 6435 & 36 & 6 & \textbf{87.1} & 80.1 & 80.0 & 84.7 & +7.1\\
+magic & 19020 & 10 & 2 & \textbf{86.0} & 81.9 & 79.1 & 84.5 & +6.9\\
+contraceptive & 1473 & 9 & 3 & 53.5 & 50.2 & 50.8 & \textbf{53.5} & +2.7\\
+ionosphere & 351 & 33 & 2 & \textbf{89.5} & 87.2 & 87.2 & 86.9 & +2.3\\
+penbased & 10992 & 16 & 10 & \textbf{96.1} & 86.6 & 94.1 & 87.1 & +2.0\\
+bupa & 345 & 6 & 2 & 68.1 & \textbf{69.6} & 66.7 & 62.9 & +1.4\\
+australian & 690 & 14 & 2 & \textbf{85.9} & 85.5 & 84.8 & 84.8 & +1.2\\
+wine & 178 & 13 & 3 & \textbf{94.4} & 88.2 & 93.3 & 87.1 & +1.1\\
+mammographic & 830 & 5 & 2 & \textbf{83.1} & 82.7 & 82.2 & 80.8 & +1.0\\
+crx & 653 & 15 & 2 & \textbf{86.4} & \textbf{86.4} & 86.1 & 84.5 & +0.3\\
+segment & 2310 & 19 & 7 & 95.4 & 93.4 & 95.2 & \textbf{95.7} & +0.2\\
+pima & 768 & 8 & 2 & \textbf{76.3} & 74.6 & \textbf{76.3} & 74.5 & +0.0\\
+wisconsin & 683 & 9 & 2 & 95.8 & 93.8 & \textbf{96.6} & 94.4 & -0.9\\
+spectfheart & 267 & 44 & 2 & 75.7 & \textbf{79.0} & 76.8 & 71.5 & -1.1\\
+spambase & 4597 & 57 & 2 & 91.6 & 86.8 & \textbf{92.8} & 91.7 & -1.2\\
+wdbc & 569 & 30 & 2 & 93.7 & 93.3 & \textbf{95.1} & 92.6 & -1.4\\
+german & 1000 & 20 & 2 & 73.3 & 70.6 & \textbf{76.0} & 70.7 & -2.7\\
+balance & 625 & 4 & 3 & 83.4 & 74.7 & \textbf{87.0} & 83.4 & -3.7\\
+texture & 5500 & 40 & 11 & 93.2 & 87.5 & \textbf{97.5} & 87.5 & -4.3\\
+saheart & 462 & 9 & 2 & 66.2 & 68.0 & \textbf{71.2} & 64.3 & -5.0\\
+optdigits & 5620 & 64 & 10 & 90.9 & 76.8 & \textbf{96.1} & 82.8 & -5.2\\
+heart & 270 & 13 & 2 & 77.8 & 76.3 & \textbf{83.3} & 74.8 & -5.6\\
+vehicle & 846 & 18 & 4 & 71.9 & 68.8 & \textbf{79.6} & 70.6 & -7.7\\
+twonorm & 7400 & 20 & 2 & 85.8 & 82.5 & \textbf{97.7} & 93.5 & -11.9\\
+\midrule
+Mean & & & & 83.2 & 79.6 & 81.1 & 80.6 & +2.1\\
+\bottomrule
+\end{tabular}
+\end{table}

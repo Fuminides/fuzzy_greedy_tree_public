@@ -1,0 +1,32 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{\textbf{Stability constants, certificates and explanation size of FERL-deep} (median [interquartile range] over the 30 datasets of the per-dataset means over five folds). Perturbations are measured in training standard deviations ($\ell_\infty$). The local radius is the largest $\epsilon$ with $\epsilon\,L_x(\epsilon)<\Delta(x)$, where $L_x$ counts only the bands and subtrees an $\epsilon$-ball around $x$ can reach and the ball stays inside every reached support gate; it is a valid lower bound on the flip distance on every evaluated point, while random search gives an upper bound.}
+\label{tab:stability}
+\begin{tabular}{@{}lc@{}}
+\toprule
+Quantity & Median [IQR]\\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Constants of the global bounds}}\\
+Leaves $R$ & 77 [39, 182]\\
+Maximum depth $D$ & 12.0 [10.4, 12.0]\\
+Largest ramp slope $\lambda$ (per std) & 315.0 [114.8, 616.2]\\
+Largest number of firing leaves $K$ & 14.5 [9.8, 19.9]\\
+5\% quantile of the normaliser $Z$ ($\tau$) & 0.85 [0.81, 0.86]\\
+Mass-Lipschitz scale $2KD\lambda/\tau$ ($D$ = depth; lower bound for Prop.~\ref{prop:lipschitz}) & 95012 [44586, 287503]\\
+Certificate constant $L_T$ (per std, Prop.~\ref{prop:certificate}) & 867 [268, 1792]\\
+\multicolumn{2}{@{}l}{\emph{Certified and empirical radii (std units)}}\\
+Median soft-vote margin $\Delta(x)$ & 0.70 [0.49, 0.81]\\
+Median global radius $\Delta(x)/L_T$ & 0.001 [0.000, 0.003]\\
+Median local radius & 0.006 [0.000, 0.043]\\
+Share of test points with local radius $\ge 0.05$ & 0.13 [0.02, 0.43]\\
+Share of test points with local radius $\ge 0.1$ & 0.06 [0.01, 0.18]\\
+Median flip distance found by random search & 0.39 [0.30, 0.61]\\
+\multicolumn{2}{@{}l}{\emph{Routing overlap and explanation size}}\\
+Mean training overlap per level $\omega$ & 1.48 [1.18, 1.90]\\
+Leaves firing $\ge 0.05$ per test point & 3.07 [2.43, 3.80]\\
+Leaves covering 90\% of the firing mass & 3.24 [2.32, 3.94]\\
+Conditions on the most-firing leaf & 7.0 [5.9, 9.4]\\
+\bottomrule
+\end{tabular}
+\end{table}

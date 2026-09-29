@@ -1,0 +1,30 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{\textbf{Two traced FERL-deep predictions on the wine data} (outer fold~0). (a)~A test wine whose native set contains two cultivars: every leaf firing at least $0.01$, its conditions ($\lesssim$/$\gtrsim$ mark a fuzzy threshold; repeated tests on one feature are merged into an interval), firing and consequent, then the combined Dempster masses. (b)~A cultivar-3 wine scored by a tree trained without cultivar~3: the rules fire at full strength and ignorance stays low, but the residual score exceeds the 95th percentile of training scores and names the atypical free attributes of the dominant leaf.}
+\label{tab:traced}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{0.52\linewidth}rp{0.36\linewidth}@{}}
+\toprule
+\multicolumn{3}{@{}l}{\emph{(a) In distribution; true class: cultivar 1}}\\
+Fired leaf (conditions) & $\phi_\ell$ & consequent $p_\ell$\\
+\midrule
+626 $\lesssim$ Proline $\lesssim$ 723, OD280/OD315 $\gtrsim$ 2.11, flavanoids $\gtrsim$ 1.04 & 0.38 & (0.20/0.65/0.15)\\
+723 $\lesssim$ Proline $\lesssim$ 788, OD280/OD315 $\gtrsim$ 2.11, flavanoids $\gtrsim$ 1.04 & 0.33 & (0.36/0.48/0.16)\\
+509 $\lesssim$ Proline $\lesssim$ 626, OD280/OD315 $\gtrsim$ 2.11, flavanoids $\gtrsim$ 1.04 & 0.21 & (0.15/0.71/0.14)\\
+Proline $\lesssim$ 509, OD280/OD315 $\gtrsim$ 2.11, flavanoids $\gtrsim$ 1.04 & 0.08 & (0.04/0.92/0.04)\\
+\midrule
+Dempster masses $m(\{c\})$ & \multicolumn{2}{p{0.42\linewidth}}{(0.13/0.43/0.08), $m(\Theta)=0.35$}\\
+Plausibility $\mathrm{Pl}(c)$ & \multicolumn{2}{p{0.42\linewidth}}{(0.49/0.79/0.43)}\\
+Set $S(x)$; soft vote & \multicolumn{2}{p{0.42\linewidth}}{\{cultivar 1, cultivar 2\}; (0.23/0.63/0.14) $\to$ cultivar 2}\\
+\midrule
+\multicolumn{3}{@{}l}{\emph{(b) Near-OOD; true class: cultivar 3 (unseen in training)}}\\
+Dominant route: Proline $\gtrsim$ 763 & 1.00 & $\to$ cultivar 1\\
+Total leaf firing; ignorance & \multicolumn{2}{p{0.42\linewidth}}{1.00; 0.00}\\
+Residual score (threshold) & \multicolumn{2}{p{0.42\linewidth}}{9.0 (2.0)}\\
+\quad AlcalinityOfAsh: value 27 vs.\ leaf 17.4\,$\pm$\,1.9 & \multicolumn{2}{p{0.42\linewidth}}{$z^2=24.8$}\\
+\quad NonflavanoidsPhenols: value 0.63 vs.\ leaf 0.301\,$\pm$\,0.067 & \multicolumn{2}{p{0.42\linewidth}}{$z^2=24.5$}\\
+\quad flavanoids: value 0.58 vs.\ leaf 2.83\,$\pm$\,0.52 & \multicolumn{2}{p{0.42\linewidth}}{$z^2=18.7$}\\
+\bottomrule
+\end{tabular}
+\end{table}
