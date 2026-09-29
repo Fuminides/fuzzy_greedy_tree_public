@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{\textbf{Band-width ablation for FERL-deep} (30 datasets, 5 folds). Only the rule that sets each split's half-width $h$ changes; $\sigma_{o,f}$ is the node-weighted standard deviation of the split feature. The last row keeps only the width floor, giving an almost crisp tree grown by the same code. Accuracy, AURC and ECE use the soft vote; the set columns use leaves-only Dempster. W/T/L counts datasets where the bootstrap width is more/equally/less accurate; stars mark Holm-corrected Wilcoxon differences from the bootstrap row (accuracy and AURC).}
+\label{tab:width-ablation}
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+Half-width rule & Acc. & AURC & ECE & Ign. & Cov. & Size & W/T/L\\
+\midrule
+Bootstrap std (used) & 83.23 & 9.21 & 11.3 & 22.9 & 92.3 & 1.70 & --\\
+$0.5\,\sigma_{o,f}$ & 83.52 & 8.44$^{*}$ & 12.6 & 21.1 & 93.6 & 1.88 & 14/0/16\\
+$0.25\,\sigma_{o,f}$ & 82.86 & 9.35 & 10.3 & 12.7 & 88.8 & 1.43 & 15/0/15\\
+$0.1\,\sigma_{o,f}$ & 81.92$^{***}$ & 10.18$^{**}$ & 9.3 & 6.2 & 84.8 & 1.17 & 25/0/5\\
+Width floor only (near-crisp) & 81.03$^{***}$ & 11.79$^{***}$ & 9.7 & 2.1 & 82.9 & 1.08 & 26/0/4\\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,107 @@
+{
+ "a": {
+  "test_position": 7,
+  "truth": "cultivar 1",
+  "leaves": [
+   {
+    "conditions": "626 $\\lesssim$ Proline $\\lesssim$ 723, OD280/OD315 $\\gtrsim$ 2.11, flavanoids $\\gtrsim$ 1.04",
+    "depth": 6,
+    "firing": 0.3801517033329794,
+    "consequent": [
+     0.20407527868840894,
+     0.6505353706417278,
+     0.14538935066986308
+    ]
+   },
+   {
+    "conditions": "723 $\\lesssim$ Proline $\\lesssim$ 788, OD280/OD315 $\\gtrsim$ 2.11, flavanoids $\\gtrsim$ 1.04",
+    "depth": 4,
+    "firing": 0.3328024368236444,
+    "consequent": [
+     0.3565912994611238,
+     0.4846752244450085,
+     0.15873347609386773
+    ]
+   },
+   {
+    "conditions": "509 $\\lesssim$ Proline $\\lesssim$ 626, OD280/OD315 $\\gtrsim$ 2.11, flavanoids $\\gtrsim$ 1.04",
+    "depth": 8,
+    "firing": 0.2073344733186371,
+    "consequent": [
+     0.14649796509210508,
+     0.7104781469886831,
+     0.1430238879192119
+    ]
+   },
+   {
+    "conditions": "Proline $\\lesssim$ 509, OD280/OD315 $\\gtrsim$ 2.11, flavanoids $\\gtrsim$ 1.04",
+    "depth": 5,
+    "firing": 0.07971138652473908,
+    "consequent": [
+     0.040074207148157785,
+     0.9190231068707175,
+     0.040902685981124676
+    ]
+   }
+  ],
+  "mass": [
+   0.13464543238369528,
+   0.43273113391807366,
+   0.07908522847867987
+  ],
+  "ignorance": 0.3535382052195511,
+  "belief": [
+   0.13464543238369528,
+   0.43273113391807366,
+   0.07908522847867987
+  ],
+  "plausibility": [
+   0.48818363760324635,
+   0.7862693391376248,
+   0.432623433698231
+  ],
+  "set": [
+   "cultivar 1",
+   "cultivar 2"
+  ],
+  "soft_vote": [
+   0.22982246726260602,
+   0.6291664434983878,
+   0.14101108923900624
+  ],
+  "soft_label": "cultivar 2"
+ },
+ "b": {
+  "truth": "cultivar 3",
+  "predicted": "cultivar 1",
+  "dominant_route": "Proline $\\gtrsim$ 763",
+  "dominant_firing": 1.0,
+  "total_firing": 1.0,
+  "ignorance": 0.0,
+  "residual": 8.977290331132652,
+  "threshold": 2.047808816646215,
+  "anomalous": [
+   {
+    "attribute": "AlcalinityOfAsh",
+    "value": 27.0,
+    "leaf_mean": 17.4161997299642,
+    "leaf_sd": 1.9248897922459933,
+    "z2": 24.789271823037307
+   },
+   {
+    "attribute": "NonflavanoidsPhenols",
+    "value": 0.63,
+    "leaf_mean": 0.3007567802658041,
+    "leaf_sd": 0.06657054409361114,
+    "z2": 24.460732998167714
+   },
+   {
+    "attribute": "flavanoids",
+    "value": 0.58,
+    "leaf_mean": 2.8309757632935875,
+    "leaf_sd": 0.520921754336299,
+    "z2": 18.67224980066831
+   }
+  ]
+ }
+}

@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{\textbf{Representation dependence of the leaves-only Dempster read-out} (30 datasets, five folds). Every leaf of the fitted FERL-deep tree is replaced by two children that keep its consequent, split on the leaf's highest-variance feature at its weighted median with a one-standard-deviation band. The classifier is unchanged---the soft vote differs by at most 4.4e-16---but the evidential read-out is not. Upper block: 0--100 scale except set size.}
+\label{tab:noop}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Leaves-only Dempster read-out & Fitted tree & With no-op splits\\
+\midrule
+Mean ignorance $m(\Theta)$ & 22.9 & 29.0\\
+Set coverage & 92.3 & 93.5\\
+Mean set size & 1.70 & 1.87\\
+Determinacy & 74.3 & 69.5\\
+$u_{65}$ & 79.5 & 78.1\\
+Pignistic accuracy & 83.2 & 83.2\\
+\bottomrule
+\end{tabular}
+\end{table}

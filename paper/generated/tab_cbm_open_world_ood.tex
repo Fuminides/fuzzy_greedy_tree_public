@@ -1,0 +1,36 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{\textbf{Detector-class-disjoint open-world CBM detection.} AUROC, AUPR-Out, FPR95, and unseen-class rejection at a threshold fixed to accept $95\%$ of retained-class validation inputs (all on the 0--100 scale). Within each dataset, the first four rows are FERL's native signals and the rest are reference signals and dedicated detectors fitted on the same calibrated concept vectors. We first macro-average the five held-out-class folds within each detector seed and report mean\,$\pm$\,std over three seeds. Higher is better except for FPR95. Best entries per dataset and metric are bold.}
+\label{tab:cbm-open-world-ood}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Signal & AUROC & AUPR-Out & FPR95 & Reject\\
+\midrule
+\multicolumn{5}{@{}l}{\textbf{CUB-200}}\\
+FERL residual & 68.2\,$\pm$\,2.4 & 31.0\,$\pm$\,1.5 & 82.3\,$\pm$\,2.6 & 10.2\,$\pm$\,0.3\\
+FERL ignorance & 57.5\,$\pm$\,0.3 & 24.6\,$\pm$\,0.5 & 100.0\,$\pm$\,0.0 & 8.2\,$\pm$\,0.3\\
+FERL set size & 55.9\,$\pm$\,1.1 & 22.6\,$\pm$\,0.4 & 100.0\,$\pm$\,0.0 & 0.0\,$\pm$\,0.0\\
+FERL $1-\max p$ & 57.8\,$\pm$\,0.2 & 24.3\,$\pm$\,0.4 & 100.0\,$\pm$\,0.0 & 7.2\,$\pm$\,1.3\\
+\cmidrule(l){1-5}
+LR entropy & \textbf{72.5\,$\pm$\,2.2} & \textbf{35.6\,$\pm$\,2.5} & \textbf{71.6\,$\pm$\,3.3} & 15.0\,$\pm$\,0.8\\
+LR $1-\max p$ & 72.1\,$\pm$\,2.3 & 35.5\,$\pm$\,2.6 & 72.1\,$\pm$\,3.1 & \textbf{15.3\,$\pm$\,1.0}\\
+Mahalanobis & 70.2\,$\pm$\,2.5 & 32.3\,$\pm$\,2.4 & 73.3\,$\pm$\,3.7 & 13.5\,$\pm$\,1.8\\
+$k$NN distance & 70.5\,$\pm$\,3.0 & 33.4\,$\pm$\,3.1 & 74.3\,$\pm$\,5.2 & 13.6\,$\pm$\,2.0\\
+Isolation Forest & 58.8\,$\pm$\,1.4 & 25.6\,$\pm$\,1.5 & 89.3\,$\pm$\,1.3 & 8.5\,$\pm$\,1.7\\
+\midrule
+\multicolumn{5}{@{}l}{\textbf{AwA2}}\\
+FERL residual & 86.2\,$\pm$\,0.2 & \textbf{68.3\,$\pm$\,0.5} & 75.8\,$\pm$\,1.4 & \textbf{57.2\,$\pm$\,0.9}\\
+FERL ignorance & 61.4\,$\pm$\,3.9 & 35.7\,$\pm$\,3.5 & 100.0\,$\pm$\,0.0 & 23.6\,$\pm$\,1.7\\
+FERL set size & 58.1\,$\pm$\,0.8 & 28.3\,$\pm$\,1.0 & 100.0\,$\pm$\,0.0 & 18.8\,$\pm$\,1.7\\
+FERL $1-\max p$ & 69.4\,$\pm$\,3.9 & 43.4\,$\pm$\,3.4 & 84.4\,$\pm$\,3.0 & 27.5\,$\pm$\,3.2\\
+\cmidrule(l){1-5}
+LR entropy & 83.2\,$\pm$\,1.1 & 61.7\,$\pm$\,0.8 & 62.7\,$\pm$\,4.1 & 44.9\,$\pm$\,1.3\\
+LR $1-\max p$ & 83.0\,$\pm$\,1.0 & 60.3\,$\pm$\,1.0 & 63.0\,$\pm$\,5.5 & 43.9\,$\pm$\,1.2\\
+Mahalanobis & 88.0\,$\pm$\,0.8 & 67.5\,$\pm$\,0.4 & \textbf{54.2\,$\pm$\,5.4} & 56.2\,$\pm$\,0.3\\
+$k$NN distance & \textbf{88.2\,$\pm$\,0.4} & 67.7\,$\pm$\,0.4 & 54.3\,$\pm$\,4.9 & 53.2\,$\pm$\,1.8\\
+Isolation Forest & 81.8\,$\pm$\,0.4 & 55.4\,$\pm$\,2.6 & 78.6\,$\pm$\,1.2 & 39.1\,$\pm$\,3.7\\
+\bottomrule
+\end{tabular}
+\end{table}

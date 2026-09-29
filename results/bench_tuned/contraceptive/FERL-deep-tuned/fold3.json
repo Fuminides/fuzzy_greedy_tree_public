@@ -1,0 +1,74 @@
+{
+  "created_utc": "2026-09-28T14:47:58.081738+00:00",
+  "dataset": "contraceptive",
+  "environment": {},
+  "estimator_params": {
+    "bounded_support": true,
+    "criterion": "gini",
+    "inner_folds": 3,
+    "max_depth": 12,
+    "min_leaf_w": 2.0,
+    "n_boot": 25,
+    "oob_margin": 1.0,
+    "random_state": 0,
+    "width_grid": [
+      "bootstrap",
+      0.25,
+      0.5,
+      1.0
+    ]
+  },
+  "fold": 3,
+  "model": "FERL-deep-tuned",
+  "model_archive": null,
+  "project_revision": "c85ec45760af536dac59667ea6a3734fc08fe810",
+  "resolved_params": {
+    "bounded_support": true,
+    "complexity": 173.0,
+    "criterion": "gini",
+    "inner_folds": 3,
+    "max_depth": 12,
+    "min_leaf_w": 2.0,
+    "n_boot": 25,
+    "oob_margin": 1.0,
+    "random_state": 0,
+    "selected_width": "bootstrap",
+    "width_grid": [
+      "bootstrap",
+      0.25,
+      0.5,
+      1.0
+    ],
+    "width_scores": [
+      0.5441786172290328,
+      0.5805287527980456,
+      0.5509288521933338,
+      0.5504687240155003
+    ]
+  },
+  "rule_summary": null,
+  "schema_version": 2,
+  "source_revision": "c85ec45760af536dac59667ea6a3734fc08fe810",
+  "split": {
+    "calibration_seed": 3,
+    "calibration_size": 295,
+    "outer_seed": 33,
+    "test_size": 294,
+    "train_size": 884
+  },
+  "structure": {
+    "avg_rule_length": 1.0,
+    "complexity": 173.0,
+    "condition_complexity": 173.0,
+    "n_rules": 173.0
+  },
+  "versions": {
+    "imodels": "2.0.4",
+    "joblib": "1.5.3",
+    "numpy": "2.4.2",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "scikit-learn": "1.8.0",
+    "torch": "2.10.0+cpu"
+  }
+}

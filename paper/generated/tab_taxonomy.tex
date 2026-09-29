@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{\textbf{In-distribution failure taxonomy of FERL-deep's native sets} (30 datasets, five folds; means over datasets of per-fold means). Conflict is $1-Z$, the mass Dempster's rule discards; support loss is $1-\sum_\ell\phi_\ell(x)$, the routing mass removed by the support gates; active leaves fire at $\ge 0.05$.}
+\label{tab:taxonomy}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Outcome & Share & Ignorance & Conflict & Support loss & Active leaves\\
+\midrule
+Correct singleton & 66.7 & 19.4 & 5.1 & 0.23 & 2.89\\
+Wrong singleton & 7.6 & 17.1 & 6.2 & 0.46 & 2.43\\
+Set, point label correct & 16.5 & 35.2 & 14.3 & 3.59 & 3.92\\
+Set, point wrong, truth in set & 9.1 & 33.5 & 14.9 & 2.06 & 3.67\\
+Set missing the truth & 0.1 & 18.5 & 10.8 & 1.10 & 2.27\\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,30 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{\textbf{Sensitivity to the encoding of nominal attributes.} Accuracy (0--100, mean over the five folds) with the benchmark's integer codes / with one-hot encoding, on the three datasets with multi-level nominal attributes, and the mean change. RRL and RL-Net could not be rerun and are omitted.}
+\label{tab:encoding}
+\begin{tabular}{@{}lcccr@{}}
+\toprule
+Method & australian & crx & german & $\Delta$\\
+\midrule
+FERL-compact & 85.8 / 85.8 & 86.5 / 85.8 & 70.5 / 70.0 & -0.4\\
+FERL-medium & 85.5 / 85.8 & 86.4 / 86.5 & 70.6 / 70.6 & +0.1\\
+FERL-deep & 85.9 / 85.1 & 86.4 / 86.2 & 73.3 / 69.9 & -1.5\\
+CART & 80.1 / 81.0 & 81.2 / 81.0 & 66.8 / 67.5 & +0.5\\
+C4.5 & 78.7 / 78.7 & 82.5 / 81.8 & 66.7 / 67.5 & +0.0\\
+FIGS & 84.8 / 84.6 & 84.5 / 83.8 & 70.7 / 71.7 & +0.0\\
+RuleFit & 86.8 / 87.0 & 87.1 / 86.2 & 74.0 / 73.4 & -0.5\\
+FURIA & 84.8 / 85.7 & 87.1 / 86.2 & 67.9 / 71.0 & +1.0\\
+FUCS (DS) & 87.2 / 86.2 & 86.5 / 85.6 & 69.5 / 70.0 & -0.5\\
+NeuRules & 85.1 / 84.9 & 86.4 / 86.4 & 73.1 / 73.1 & -0.0\\
+SamRuLe & 85.7 / 85.7 & 86.2 / 85.9 & 70.0 / 70.0 & -0.1\\
+NCC & 78.8 / 79.3 & 77.8 / 76.9 & 74.1 / 69.2 & -1.8\\
+CDT & 74.8 / 74.9 & 75.0 / 73.2 & 70.9 / 67.9 & -1.6\\
+Logistic reg. & 84.8 / 86.1 & 86.1 / 86.1 & 76.0 / 74.6 & -0.0\\
+RF & 87.2 / 87.5 & 87.9 / 88.2 & 75.7 / 76.0 & +0.3\\
+GB & 87.1 / 87.5 & 87.0 / 85.9 & 75.6 / 72.9 & -1.1\\
+EDL & 87.5 / 87.1 & 85.1 / 84.4 & 71.8 / 71.9 & -0.4\\
+\bottomrule
+\end{tabular}
+\end{table}

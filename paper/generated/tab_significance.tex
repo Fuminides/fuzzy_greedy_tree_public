@@ -1,0 +1,27 @@
+\begin{table}[h!]
+\centering
+\small
+\caption{\textbf{Wilcoxon signed-rank comparisons on the tabular benchmark.} Pairwise comparison of \emph{FERL-deep} against every interpretable and rule-learning baseline across 30 datasets. Entries are mean paired differences: $\Delta$Acc.\ $>0$ and $\Delta$AURC $<0$ favour FERL. $p$-values are Holm-corrected within each metric's comparison family. $^{*}p<0.05$, $^{**}p<0.01$, $^{***}p<0.001$.}
+\label{tab:sig}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+vs.\ baseline & $\Delta$Acc.\ $\uparrow$ & $\Delta$AURC $\downarrow$\\
+\midrule
+CART & +3.47$^{***}$ & -10.68$^{***}$\\
+C4.5 & +5.04$^{***}$ & -8.87$^{***}$\\
+FIGS & +2.60$^{***}$ & -6.01$^{***}$\\
+RuleFit & -0.44 & +1.33$^{*}$\\
+Logistic reg. & +2.09 & -1.38\\
+FURIA & +4.72$^{***}$ & -8.21$^{***}$\\
+FUCS (DS) & +6.03$^{*}$ & -9.17$^{***}$\\
+RRL & +5.28$^{**}$ & -4.68$^{***}$\\
+RL-Net & +8.42$^{***}$ & -11.59$^{***}$\\
+NeuRules & +3.96$^{**}$ & -4.87$^{***}$\\
+SamRuLe & +12.70$^{***}$ & -10.86$^{***}$\\
+NCC & +5.25$^{**}$ & -2.87\\
+CDT & +6.63$^{***}$ & -4.69$^{***}$\\
+FERL-compact & +5.34$^{***}$ & -8.45$^{***}$\\
+FERL-medium & +3.66$^{***}$ & -3.29$^{***}$\\
+\bottomrule
+\end{tabular}
+\end{table}

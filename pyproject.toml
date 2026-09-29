@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ferl"
+version = "0.1.0"
+description = "FERL (Fast Evidential Rule Learning): evidential fuzzy rule trees and the experiment harness of the paper"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "scipy",
+    "matplotlib",
+    "ex-fuzzy",
+]
+
+[project.optional-dependencies]
+viz = ["seaborn", "scikit-posthocs"]   # figures + post-hoc stats
+torch = ["torch"]                       # fuzzification_ae, recalibrate
+
+[tool.setuptools.packages.find]
+include = ["ferl*", "ferl_fast*"]
+
+[tool.setuptools.package-data]
+ferl_fast = ["*.so", "*.pyx"]
